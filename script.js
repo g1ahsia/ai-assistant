@@ -22,7 +22,7 @@ sendButton.addEventListener('click', async () => {
 
   // Send query to the server
   try {
-    const response = await fetch('http://54.221.145.150:3000/chat', {
+    const response = await fetch('https://54.221.145.150:3000/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
