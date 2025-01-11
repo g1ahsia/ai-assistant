@@ -14,7 +14,8 @@
 
     /* Body styles */
     body {
-      font-family: Arial, sans-serif;
+      font-family: Helvetica, sans-serif;
+      font-size: 16px; /* Set base font size to 16px */
       margin: 0;
       padding: 0;
       display: flex;
@@ -183,7 +184,7 @@
         addMessage('Error connecting to chatbot server.', 'bot');
       }
     });
-    
+
     // Allow sending message by pressing Enter key
     queryInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
