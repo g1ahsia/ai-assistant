@@ -58,6 +58,7 @@
     }
 
     .user {
+      display: flex;
       justify-content: flex-end;
     }
 
@@ -67,10 +68,15 @@
       color: black;
       text-align: left;
       align-self: flex-end;
+      max-width: 70%;
+      word-wrap: break-word;
+      padding: 10px 15px;
+      border-radius: 20px;
     }
 
     .bot {
-      justify-content: flex-start;
+      display: flex;
+      justify-content: flex-start; /* Align to the left */
     }
 
     /* Bot's message style */
@@ -78,11 +84,11 @@
 /*      background-color: #d4edda;*/
       color: black;
       text-align: left;
-      width: 100%; /* Make the bubble take the full width of the container */
-      margin: 0; /* Remove any default margin */
+      flex-grow: 1; /* Make the message stretch to the right */
       padding: 10px 15px;
       border-radius: 20px;
       word-wrap: break-word;
+      max-width: 100%; /* Allow the bubble to take up the entire space */
     }
 
     /* Query input box at the bottom */
