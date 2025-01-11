@@ -40,18 +40,19 @@
       position: relative;
     }
 
-    /* Message bubble styles */
-    .message {
+    #chat-window .message {
       display: flex;
       margin-bottom: 10px;
+      max-width: 100%;
     }
 
-    .message p {
+    #chat-window .message p {
       margin: 0;
       padding: 10px 15px;
       border-radius: 20px;
       word-wrap: break-word;
-      max-width: 70%; /* Set a max width */
+      display: inline-block;
+      max-width: 70%;
     }
 
     /* User's message style */
