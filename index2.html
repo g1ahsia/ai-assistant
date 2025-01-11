@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chatbot</title>
   <style>
+    /* Reset margins, padding, and box-sizing to avoid issues */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     /* Body styles */
     body {
       font-family: Arial, sans-serif;
@@ -12,7 +19,6 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      height: 100vh;
       background-color: #f4f4f4;
       overflow: hidden; /* Disable scrolling for the whole body */
     }
@@ -97,6 +103,7 @@
     #send:hover {
       background: #0056b3;
     }
+
   </style>
 </head>
 <body>
@@ -114,6 +121,21 @@
     const chatWindow = document.getElementById('chat-window');
     const queryInput = document.getElementById('query');
     const sendButton = document.getElementById('send');
+
+    // Function to set the chat window height dynamically
+    function setChatWindowHeight() {
+      // Set the height of the chat window to the current window's inner height
+      const windowHeight = window.innerHeight;
+      const inputBoxHeight = document.getElementById('input-box').offsetHeight;
+      const availableHeight = windowHeight - inputBoxHeight;
+
+      // Apply the calculated height to the chat window
+      chatWindow.style.height = `${availableHeight}px`;
+    }
+
+    // Call setChatWindowHeight on page load and window resize
+    window.addEventListener('load', setChatWindowHeight);
+    window.addEventListener('resize', setChatWindowHeight);
 
     // Function to add messages to the chat window
     function addMessage(text, sender) {
@@ -146,6 +168,21 @@
       if (e.key === 'Enter') {
         sendButton.click();
       }
+    });
+        // Adjust scroll position when input is focused
+    queryInput.addEventListener('focus', () => {
+      setTimeout(() => {
+        // Scroll chat window to the bottom when the input field is focused
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+      }, 300); // Delay to ensure the keyboard has appeared
+    });
+
+    // Optionally: Adjust scroll position when the input field loses focus
+    queryInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        // Scroll chat window to the bottom when input field loses focus
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+      }, 300); // Delay to ensure the keyboard has disappeared
     });
   </script>
 
