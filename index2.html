@@ -172,9 +172,10 @@
 
     // Adjust chat window position on focus
     queryInput.addEventListener('focus', () => {
-      setTimeout(() => {
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-      }, 300); // Delay to ensure keyboard shows up
+      // setTimeout(() => {
+      //   chatWindow.scrollTop = chatWindow.scrollHeight;
+      // }, 300); // Delay to ensure keyboard shows up
+      setChatWindowHeight();
     });
 
     // Adjust the layout if keyboard is hidden
