@@ -147,6 +147,14 @@
         addMessage('Error connecting to chatbot server.', 'bot');
       }
     });
+
+    // Add event listener for the Enter key to send the query
+    queryInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && queryInput.value.trim() !== '') {
+        sendButton.click();  // Trigger the click event of the send button
+      }
+    });
+
   </script>
 </body>
 </html>
