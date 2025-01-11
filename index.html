@@ -105,14 +105,16 @@
     const queryInput = document.getElementById('query');
     const sendButton = document.getElementById('send');
 
-    // Function to add a message to the chat window
-    const addMessage = (text, sender) => {
-      const message = document.createElement('p');
-      message.classList.add(sender);
-      message.textContent = text;
-      chatWindow.appendChild(message);
-      chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to the bottom
-    };
+    // Add a message to the chat
+    function addMessage(text, sender) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${sender}`;
+      const messageBubble = document.createElement('p');
+      messageBubble.textContent = text;
+      messageDiv.appendChild(messageBubble);
+      chatWindow.appendChild(messageDiv);
+      chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to the bottom
+    }
 
     // Event listener for the send button
     sendButton.addEventListener('click', async () => {
@@ -141,14 +143,6 @@
         addMessage('Error connecting to chatbot server.', 'bot');
       }
     });
-
-    // Pressing Enter triggers the send button
-    queryInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        sendButton.click();
-      }
-    });
-
   </script>
 </body>
 </html>
