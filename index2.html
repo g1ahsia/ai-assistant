@@ -36,7 +36,6 @@
       overflow-y: auto; /* Make chat window scrollable */
       display: flex;
       flex-direction: column;
-/*      height: 100vh;  /* Use viewport height */*/
       height: calc(100vh - 50px);  /* Make the chat window adjust to fill the available space */
       position: relative;
     }
@@ -171,22 +170,22 @@
       }
     });
 
-    // Scroll chat window to the bottom on focus
+    // Adjust chat window position on focus
     queryInput.addEventListener('focus', () => {
       setTimeout(() => {
         chatWindow.scrollTop = chatWindow.scrollHeight;
       }, 300); // Delay to ensure keyboard shows up
     });
 
-    // Adjust chat window position on blur
+    // Adjust the layout if keyboard is hidden
     queryInput.addEventListener('blur', () => {
       setTimeout(() => {
         setChatWindowHeight(); // Recalculate window height when keyboard disappears
-        chatWindow.scrollTop = chatWindow.scrollHeight;
+        chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to the bottom
       }, 300); // Delay to ensure keyboard disappears
     });
 
-        // Detect when the keyboard opens/closes
+    // Detect when the keyboard opens/closes
     window.addEventListener('resize', () => {
       if (window.innerHeight < 500) {
         // Keyboard is visible, adjust layout accordingly
