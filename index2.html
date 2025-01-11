@@ -105,7 +105,6 @@
     #send:hover {
       background: #0056b3;
     }
-
   </style>
 </head>
 <body>
@@ -126,7 +125,6 @@
 
     // Function to set the chat window height dynamically
     function setChatWindowHeight() {
-      // Set the height of the chat window to the current window's inner height
       const windowHeight = window.innerHeight;
       const inputBoxHeight = document.getElementById('input-box').offsetHeight;
       const availableHeight = windowHeight - inputBoxHeight;
@@ -171,20 +169,19 @@
         sendButton.click();
       }
     });
-        // Adjust scroll position when input is focused
+
+    // Scroll chat window to the bottom on focus
     queryInput.addEventListener('focus', () => {
       setTimeout(() => {
-        // Scroll chat window to the bottom when the input field is focused
         chatWindow.scrollTop = chatWindow.scrollHeight;
-      }, 300); // Delay to ensure the keyboard has appeared
+      }, 300); // Delay to ensure keyboard shows up
     });
 
-    // Optionally: Adjust scroll position when the input field loses focus
+    // Adjust chat window position on blur
     queryInput.addEventListener('blur', () => {
       setTimeout(() => {
-        // Scroll chat window to the bottom when input field loses focus
         chatWindow.scrollTop = chatWindow.scrollHeight;
-      }, 300); // Delay to ensure the keyboard has disappeared
+      }, 300); // Delay to ensure keyboard disappears
     });
   </script>
 
