@@ -105,30 +105,50 @@
     const queryInput = document.getElementById('query');
     const sendButton = document.getElementById('send');
 
-    // Add a message to the chat
-    function addMessage(text, sender) {
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${sender}`;
-      const messageBubble = document.createElement('p');
-      messageBubble.textContent = text;
-      messageDiv.appendChild(messageBubble);
-      chatWindow.appendChild(messageDiv);
-      chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to the bottom
-    }
+    // Function to add a message to the chat window
+    const addMessage = (text, sender) => {
+      const message = document.createElement('p');
+      message.classList.add(sender);
+      message.textContent = text;
+      chatWindow.appendChild(message);
+      chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to the bottom
+    };
 
-    // Handle sending messages
-    sendButton.addEventListener('click', () => {
-      const text = queryInput.value.trim();
-      if (text) {
-        addMessage(text, 'user'); // Add user message
-        queryInput.value = '';
+    // Event listener for the send button
+    sendButton.addEventListener('click', async () => {
+      const query = queryInput.value.trim();
+      if (!query) return;
 
-        // Simulate bot response
-        setTimeout(() => {
-          addMessage('This is a bot response.', 'bot');
-        }, 1000);
+      // Display user query
+      addMessage(query, 'user');
+      queryInput.value = ''; // Clear input
+
+      // Send query to the server
+      try {
+        const response = await fetch('https://54.221.145.150:3000/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query }),
+        });
+        const data = await response.json();
+
+        // Display chatbot response
+        addMessage(data.response, 'bot');
+      } catch (error) {
+        console.error('Error:', error);
+        addMessage('Error connecting to chatbot server.', 'bot');
       }
     });
+
+    // Pressing Enter triggers the send button
+    queryInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendButton.click();
+      }
+    });
+
   </script>
 </body>
 </html>
