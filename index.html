@@ -42,7 +42,8 @@
       padding: 10px 15px;
       border-radius: 20px;
       word-wrap: break-word;
-      width: calc(100% - 20px); /* Full width minus padding */
+      display: inline-block; /* Makes the bubble only as wide as the content */
+      max-width: 70%; /* Prevents it from stretching too much */
     }
 
     .user {
@@ -50,9 +51,10 @@
     }
 
     .user p {
-      background-color: #f1f1f1; /* Light grey for user messages */
+      background-color: #f1f1f1;
       color: black;
       text-align: right;
+      align-self: flex-end; /* Align the bubble to the right */
     }
 
     .bot {
