@@ -42,7 +42,7 @@
       padding: 10px 15px;
       border-radius: 20px;
       word-wrap: break-word;
-      max-width: 70%; /* Limit width to avoid stretching too much */
+      width: calc(100% - 20px); /* Full width minus padding */
     }
 
     .user {
@@ -52,6 +52,7 @@
     .user p {
       background-color: #f1f1f1; /* Light grey for user messages */
       color: black;
+      text-align: right;
     }
 
     .bot {
@@ -59,12 +60,9 @@
     }
 
     .bot p {
-/*      background-color: #e0ffe0; /* Light green for bot messages */*/
       color: black;
       width: 100%; /* Make the message span the full width */
       text-align: left; /* Align the text to the left */
-      margin: 0; /* Remove extra margins */
-
     }
 
     #input-box {
