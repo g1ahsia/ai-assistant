@@ -29,30 +29,38 @@
       box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
       display: flex;
       flex-direction: column;
-      gap: 10px;
     }
 
-    #chat-window p {
+    #chat-window .message {
+      display: flex;
+      margin-bottom: 10px;
+      max-width: 100%; /* Ensure no overflow */
+    }
+
+    #chat-window .message p {
       margin: 0;
-      padding: 10px;
+      padding: 10px 15px;
       border-radius: 20px;
-      display: inline-block;
-      max-width: 80%; /* Ensure bubbles don't stretch too wide */
       word-wrap: break-word;
+      max-width: 70%; /* Limit width to avoid stretching too much */
     }
 
     .user {
-      text-align: right;
-      background-color: #f1f1f1;
+      justify-content: flex-end;
+    }
+
+    .user p {
+      background-color: #f1f1f1; /* Light grey for user messages */
       color: black;
-      margin-left: auto;
     }
 
     .bot {
-      text-align: left;
+      justify-content: flex-start;
+    }
+
+    .bot p {
       background-color: #e0ffe0; /* Light green for bot messages */
       color: black;
-      margin-right: auto;
     }
 
     #input-box {
@@ -92,6 +100,35 @@
     <button id="send">Send</button>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+    const chatWindow = document.getElementById('chat-window');
+    const queryInput = document.getElementById('query');
+    const sendButton = document.getElementById('send');
+
+    // Add a message to the chat
+    function addMessage(text, sender) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${sender}`;
+      const messageBubble = document.createElement('p');
+      messageBubble.textContent = text;
+      messageDiv.appendChild(messageBubble);
+      chatWindow.appendChild(messageDiv);
+      chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to the bottom
+    }
+
+    // Handle sending messages
+    sendButton.addEventListener('click', () => {
+      const text = queryInput.value.trim();
+      if (text) {
+        addMessage(text, 'user'); // Add user message
+        queryInput.value = '';
+
+        // Simulate bot response
+        setTimeout(() => {
+          addMessage('This is a bot response.', 'bot');
+        }, 1000);
+      }
+    });
+  </script>
 </body>
 </html>
