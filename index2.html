@@ -73,17 +73,14 @@
 
     /* Query input box at the bottom */
     #input-box {
-      width: 100%;
-      max-width: 600px;
-      padding: 10px;
-      background-color: white;
       display: flex;
-      justify-content: space-between;
+      width: 90%;
+      max-width: 600px;
       position: fixed;
-      bottom: 0;
-      left: 0;
-      border-top: 1px solid #ccc;
-      box-shadow: 0px -2px 10px rgba(0, 0, 0, 0.1);
+      bottom: 10px; /* Position the input box at the bottom */
+      background-color: white; /* Ensure it has a solid background */
+      z-index: 10; /* Ensure it stays above the chat window */
+      padding: 10px 0;
       justify-content: center;
     }
 
