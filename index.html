@@ -100,35 +100,6 @@
     <button id="send">Send</button>
   </div>
 
-  <script>
-    const chatWindow = document.getElementById('chat-window');
-    const queryInput = document.getElementById('query');
-    const sendButton = document.getElementById('send');
-
-    // Add a message to the chat
-    function addMessage(text, sender) {
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${sender}`;
-      const messageBubble = document.createElement('p');
-      messageBubble.textContent = text;
-      messageDiv.appendChild(messageBubble);
-      chatWindow.appendChild(messageDiv);
-      chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to the bottom
-    }
-
-    // Handle sending messages
-    sendButton.addEventListener('click', () => {
-      const text = queryInput.value.trim();
-      if (text) {
-        addMessage(text, 'user'); // Add user message
-        queryInput.value = '';
-
-        // Simulate bot response
-        setTimeout(() => {
-          addMessage('This is a bot response.', 'bot');
-        }, 1000);
-      }
-    });
-  </script>
+<script src="script.js"></script>
 </body>
 </html>
