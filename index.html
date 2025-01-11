@@ -12,7 +12,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start; /* Align content to the top */
       height: 100vh;
       background-color: #f4f4f4;
     }
@@ -20,7 +20,7 @@
     #chat-window {
       width: 90%;
       max-width: 600px;
-      height: 70%;
+      height: calc(70% - 60px); /* Adjust height to account for the input box */
       border: 1px solid #ccc;
       background: #fff;
       overflow-y: auto;
@@ -34,7 +34,7 @@
     #chat-window .message {
       display: flex;
       margin-bottom: 10px;
-      max-width: 100%; /* Ensure no overflow */
+      max-width: 100%;
     }
 
     #chat-window .message p {
@@ -42,8 +42,8 @@
       padding: 10px 15px;
       border-radius: 20px;
       word-wrap: break-word;
-      display: inline-block; /* Makes the bubble only as wide as the content */
-      max-width: 70%; /* Prevents it from stretching too much */
+      display: inline-block;
+      max-width: 70%;
     }
 
     .user {
@@ -54,7 +54,7 @@
       background-color: #f1f1f1;
       color: black;
       text-align: right;
-      align-self: flex-end; /* Align the bubble to the right */
+      align-self: flex-end;
     }
 
     .bot {
@@ -63,14 +63,20 @@
 
     .bot p {
       color: black;
-      width: 100%; /* Make the message span the full width */
-      text-align: left; /* Align the text to the left */
+      width: 100%;
+      text-align: left;
     }
 
     #input-box {
       display: flex;
       width: 90%;
       max-width: 600px;
+      position: fixed;
+      bottom: 10px; /* Position the input box at the bottom */
+      background-color: white; /* Ensure it has a solid background */
+      z-index: 10; /* Ensure it stays above the chat window */
+      padding: 10px 0;
+      justify-content: center;
     }
 
     #query {
@@ -154,7 +160,6 @@
         sendButton.click();  // Trigger the click event of the send button
       }
     });
-
   </script>
 </body>
 </html>
