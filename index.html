@@ -5,76 +5,129 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chatbot</title>
   <style>
+    /* Reset margins, padding, and box-sizing to avoid issues */
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
 
-    body, html {
-      height: 100%;
-      font-family: Arial, sans-serif;
-    }
-
-    .chat-container {
+    /* Body styles */
+    body {
+      font-family: Helvetica, sans-serif;
+      font-size: 16px; /* Set base font size to 16px */
+      margin: 0;
+      padding: 0;
       display: flex;
       flex-direction: column;
-      justify-content: flex-end;
-      height: 100%;
+      align-items: center;
+      background-color: #f4f4f4;
+      overflow: hidden; /* Disable scrolling for the whole body */
+    }
+
+    /* Chat window styles */
+    #chat-window {
+      flex-grow: 1;  /* Allow chat window to grow and take available space */
       width: 100%;
+      max-width: 600px;
+      margin-bottom: 50px; /* Space for the input box */
+      border: 1px solid #ccc;
+      background-color: #fff;
       padding: 10px;
-    }
-
-    .messages {
+      box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+      overflow-y: auto; /* Make chat window scrollable */
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
-      margin-bottom: 20px;
-      max-height: 80%;
+      height: calc(100vh - 50px);  /* Make the chat window adjust to fill the available space */
+      position: relative;
     }
 
-    .message {
+    #chat-window .message {
+      display: flex;
       margin-bottom: 10px;
-      padding: 10px;
-      border-radius: 10px;
-      max-width: 80%;
+      max-width: 100%;
+    }
+
+    #chat-window .message p {
+      margin: 0;
+      padding: 10px 15px;
+      border-radius: 20px;
       word-wrap: break-word;
+      display: inline-block;
+      max-width: 70%;
     }
 
     .user {
-      background-color: #e6f7ff;
-      margin-left: auto;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* User's message style */
+    .user p {
+      background-color: #f1f1f1;
+      color: black;
+      text-align: left;
+      align-self: flex-end;
+      max-width: 70%;
+      word-wrap: break-word;
+      padding: 10px 15px;
+      border-radius: 20px;
+      flex-grow: 1; /* Make the message stretch to the right */
+
     }
 
     .bot {
-      background-color: #f1f1f1;
-      margin-right: auto;
-    }
-
-    .input-container {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      justify-content: flex-start; /* Align to the left */
+      width: 100%;
     }
 
-    #userInput {
-      width: 80%;
+    /* Bot's message style */
+    .bot p {
+/*      background-color: #d4edda;*/
+      color: black;
+      text-align: left;
+      flex-grow: 1; /* Make the message stretch to the right */
+      padding: 10px 15px;
+      border-radius: 20px;
+      word-wrap: break-word;
+      width: 100%;
+      max-width: 100%; /* Allow the bubble to take up the entire space */
+    }
+
+    /* Query input box at the bottom */
+    #input-box {
+      display: flex;
+      width: 90%;
+      max-width: 600px;
+      position: fixed;
+      bottom: 10px; /* Position the input box at the bottom */
+      background-color: white; /* Ensure it has a solid background */
+      z-index: 10; /* Ensure it stays above the chat window */
+      padding: 10px 0;
+      justify-content: center;
+    }
+
+    #query {
+      flex: 1;
       padding: 10px;
-      border-radius: 5px;
+      font-size: 16px;
       border: 1px solid #ccc;
+      border-radius: 5px;
+      outline: none;
     }
 
-    button {
-      padding: 10px;
-      border-radius: 5px;
-      border: none;
-      background-color: #007bff;
+    #send {
+      padding: 10px 20px;
+      background: #007BFF;
       color: white;
+      border: none;
+      border-radius: 5px;
       cursor: pointer;
     }
 
-    button:hover {
-      background-color: #0056b3;
+    #send:hover {
+      background: #0056b3;
     }
   </style>
 </head>
