@@ -159,12 +159,35 @@
     window.addEventListener('load', setChatWindowHeight);
     window.addEventListener('resize', setChatWindowHeight);
 
+    // Function to convert text to bullet points if it contains lines with "-" or "*"
+    function formatBulletPoints(text) {
+      // Split the text by newline to check for lines starting with bullet markers
+      const lines = text.split('\n');
+      const formattedText = lines.map(line => {
+        if (line.trim().startsWith('-') || line.trim().startsWith('*')) {
+          // Convert lines starting with - or * into list items
+          return `<li>${line.trim().slice(1).trim()}</li>`; // Remove the bullet marker (- or *) and add list item
+        }
+        return `<p>${line}</p>`; // Regular paragraph if it's not a bullet point
+      }).join('');
+      
+      return formattedText;
+    }
+
+
     // Function to add messages to the chat window
     function addMessage(text, sender) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${sender}`;
-      const messageBubble = document.createElement('p');
-      messageBubble.textContent = text;
+      // const messageBubble = document.createElement('p');
+      const messageBubble = document.createElement('div'); // Use div to allow for multiple elements inside
+      messageBubble.className = 'message-bubble';
+
+      const formattedMessage = formatBulletPoints(text);
+
+      messageBubble.innerHTML = formattedMessage; // Set the formatted message (which could contain <ul> or <li>)
+      
+      // messageBubble.textContent = text;
       messageDiv.appendChild(messageBubble);
       chatWindow.appendChild(messageDiv);
       chatWindow.scrollTop = chatWindow.scrollHeight; // Auto scroll to the bottom
