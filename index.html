@@ -148,6 +148,11 @@
       if (e.key === 'Enter') {
         sendBtn.click();
       }
+
+          // Default message on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      const defaultMessage = "您好，我是您的小助手。您可以詢問關於內觀課程的相關問題，我會參照葛印卡老師的開示、問與答、助理老師行為規範等資料，來回答您的問題。";
+      addMessage(defaultMessage, 'bot');
     });
   </script>
 </body>
