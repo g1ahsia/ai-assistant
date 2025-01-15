@@ -79,7 +79,7 @@
       formData.append('file', file);
 
       try {
-        const response = await fetch('http://localhost:3000/upload', {
+        const response = await fetch('http://api.pannamitta.com:3001/upload', {
           method: 'POST',
           body: formData,
         });
