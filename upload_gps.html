@@ -120,8 +120,8 @@
       }
 
       // ✅ Handle login
-      document.getElementById("loginForm").addEventListener("submit", (event) => {
-        event.preventDefault();
+      document.getElementById("loginForm").addEventListener("submit", async (event) => { 
+        event.preventDefault(); // Prevent form from submitting normally
 
         const email = document.getElementById("email").value;
         const password = document.getElementById("password").value;
@@ -137,11 +137,12 @@
 
           if (response.ok) {
             localStorage.setItem("token", data.token);
-            localStorage.setItem("loggedIn", "true"); // ✅ Store login state
+            localStorage.setItem("loggedIn", "true"); // Store login state
+
             document.getElementById("loginContainer").classList.add("hidden");
             document.getElementById("uploadContainer").classList.remove("hidden");
           } else {
-            alert("Login failed");
+            alert("Login failed: " + data.message);
           }
         } catch (error) {
           console.error("Error during login:", error);
