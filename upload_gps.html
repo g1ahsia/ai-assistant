@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>File Upload with Progress</title>
+  <title>Batch File Upload</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -21,7 +21,7 @@
       padding: 20px 40px;
       border-radius: 8px;
       box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-      width: 350px;
+      width: 400px;
     }
 
     input[type="file"] {
@@ -37,6 +37,7 @@
       border-radius: 5px;
       cursor: pointer;
       font-size: 16px;
+      margin-top: 10px;
     }
 
     button:hover {
@@ -48,12 +49,24 @@
       cursor: not-allowed;
     }
 
+    .progress-list {
+      margin-top: 15px;
+      text-align: left;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .progress-item {
+      margin-bottom: 10px;
+    }
+
     .progress-container {
       width: 100%;
       background-color: #ddd;
       border-radius: 5px;
-      margin-top: 10px;
-      display: none;
+      height: 10px;
+      margin-top: 5px;
+      position: relative;
     }
 
     .progress-bar {
@@ -64,85 +77,97 @@
       transition: width 0.2s ease-in-out;
     }
 
-    .result {
-      margin-top: 20px;
-      padding: 10px;
-      background-color: #f1f1f1;
-      border-radius: 5px;
-      max-width: 400px;
-      word-wrap: break-word;
-      display: none;
+    .file-name {
+      font-size: 14px;
+      display: block;
+      margin-top: 5px;
     }
   </style>
 </head>
 <body>
   <div class="upload-container">
-    <h2>Upload a File *</h2>
+    <h2>Batch File Upload</h2>
     <form id="uploadForm">
-      <input type="file" id="fileInput" accept=".txt,.pdf,.docx,.pptx" required />
+      <input type="file" id="fileInput" accept=".txt,.pdf,.docx,.pptx" multiple required />
       <br />
-      <button type="submit" id="uploadButton">Upload</button>
+      <button type="submit" id="uploadButton">Upload Files</button>
     </form>
 
-    <div class="progress-container">
-      <div class="progress-bar" id="progressBar"></div>
-    </div>
-
-    <div id="result" class="result"></div>
+    <div class="progress-list" id="progressList"></div>
   </div>
 
   <script>
     document.getElementById('uploadForm').addEventListener('submit', async (event) => {
       event.preventDefault();
-      
-      const fileInput = document.getElementById('fileInput');
-      const file = fileInput.files[0];
-      const uploadButton = document.getElementById('uploadButton');
-      const progressBar = document.getElementById('progressBar');
-      const progressContainer = document.querySelector('.progress-container');
-      const resultDiv = document.getElementById('result');
 
-      if (!file) {
-        alert('Please select a file!');
+      const fileInput = document.getElementById('fileInput');
+      const files = fileInput.files;
+      const uploadButton = document.getElementById('uploadButton');
+      const progressList = document.getElementById('progressList');
+
+      if (files.length === 0) {
+        alert('Please select files!');
         return;
       }
 
       uploadButton.disabled = true;
-      progressBar.style.width = "0%";
-      progressContainer.style.display = "block";
-      resultDiv.style.display = "none";
+      progressList.innerHTML = "";
 
-      const formData = new FormData();
-      formData.append('file', file);
+      const uploadPromises = [];
 
-      const xhr = new XMLHttpRequest();
+      for (const file of files) {
+        const progressItem = document.createElement('div');
+        progressItem.classList.add('progress-item');
+        progressItem.innerHTML = `
+          <span class="file-name">${file.name}</span>
+          <div class="progress-container">
+            <div class="progress-bar"></div>
+          </div>
+        `;
+        progressList.appendChild(progressItem);
 
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = (event.loaded / event.total) * 100;
-          progressBar.style.width = percent + "%";
-        }
-      };
+        const progressBar = progressItem.querySelector('.progress-bar');
+        uploadPromises.push(uploadFile(file, progressBar));
+      }
 
-      xhr.onload = () => {
-        uploadButton.disabled = false;
-        if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          resultDiv.style.display = 'block';
-          resultDiv.textContent = response.message || JSON.stringify(response.parsedContent, null, 2);
-        } else {
-          alert('Error uploading file.');
-        }
-      };
+      await Promise.all(uploadPromises);
 
-      xhr.onerror = () => {
-        uploadButton.disabled = false;
-        alert('Error uploading file.');
-      };
-
-      xhr.open('POST', 'https://api.pannamitta.com:3001/upload', true);
-      xhr.send(formData);
+      uploadButton.disabled = false;
+      alert('All files uploaded successfully!');
     });
+
+    function uploadFile(file, progressBar) {
+      return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = (event.loaded / event.total) * 100;
+            progressBar.style.width = percent + "%";
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            resolve();
+          } else {
+            alert(`Error uploading ${file.name}`);
+            reject();
+          }
+        };
+
+        xhr.onerror = () => {
+          alert(`Error uploading ${file.name}`);
+          reject();
+        };
+
+        xhr.open('POST', 'https://api.pannamitta.com:3001/upload', true);
+        xhr.send(formData);
+      });
+    }
   </script>
 </body>
 </html>
