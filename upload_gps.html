@@ -132,8 +132,16 @@
 
       await Promise.all(uploadPromises);
 
-      uploadButton.disabled = false;
       alert('All files uploaded successfully!');
+
+      // ✅ Clear file input selection
+      fileInput.value = '';
+
+      // ✅ Clear progress list
+      progressList.innerHTML = '';
+
+      // ✅ Enable upload button again
+      uploadButton.disabled = false;
     });
 
     function uploadFile(file, progressBar) {
