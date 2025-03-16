@@ -134,22 +134,18 @@
         // } else {
         //   alert("Invalid email or password!");
         // }
-        try {
-          const response = await fetch("https://api.pannamitta.com:3001/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-          });
-          const data = await response.json();
-          if (response.ok) {
-            localStorage.setItem("token", data.token);
-            document.getElementById("loginForm").classList.add("hidden");
-            document.getElementById("uploadSection").classList.remove("hidden");
-          } else {
-            alert("Login failed");
-          }
-        } catch (error) {
-          console.error('Error:', error);
+        const response = await fetch("https://api.pannamitta.com:3001/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await response.json();
+        if (response.ok) {
+          localStorage.setItem("token", data.token);
+          document.getElementById("loginForm").classList.add("hidden");
+          document.getElementById("uploadSection").classList.remove("hidden");
+        } else {
+          alert("Login failed");
         }
       });
 
