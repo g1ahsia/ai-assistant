@@ -127,27 +127,12 @@
         const password = document.getElementById("password").value;
 
         // Mock authentication (Replace this with API validation)
-        if (username === "admin" && password === "password123") {
+        if (email === "admin" && password === "password123") {
           localStorage.setItem("loggedIn", "true");
           loginContainer.classList.add("hidden");
           uploadContainer.classList.remove("hidden");
         } else {
-          alert("Invalid username or password!");
-        }
-
-        const response = await fetch("https://api.pannamitta.com:3001/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-          localStorage.setItem("token", data.token);
-          document.getElementById("loginForm").classList.add("hidden");
-          document.getElementById("uploadSection").classList.remove("hidden");
-        } else {
-          alert("Login failed");
+          alert("Invalid email or password!");
         }
       });
 
