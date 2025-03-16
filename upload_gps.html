@@ -209,6 +209,7 @@
         formData.append("file", file);
 
         const xhr = new XMLHttpRequest();
+        const token = localStorage.getItem("token"); // Get token from localStorage
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
@@ -232,6 +233,15 @@
         };
 
         xhr.open("POST", "https://api.pannamitta.com:3001/upload", true);
+
+        // ✅ Set Authorization Header with Bearer Token
+        if (token) {
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        } else {
+          alert("Authentication token missing. Please log in again.");
+          reject();
+          return;
+        }
         xhr.send(formData);
       });
     }
