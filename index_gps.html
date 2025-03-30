@@ -130,12 +130,13 @@
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ query }),
+            body: JSON.stringify({ query, memory }),
           });
           const data = await response.json();
 
           // Display chatbot response
           addMessage(data.response, 'bot');
+          saveMemory(query, data.response);
         } catch (error) {
           console.error('Error:', error);
           addMessage('Error connecting to chatbot server.', 'bot');
@@ -154,6 +155,23 @@
       const defaultMessage = "您好，我是您的小助手。您可以詢問關於好藥坊的相關問題。";
       addMessage(defaultMessage, 'bot');
     });
+
+    function saveMemory(user, ai) {
+      let memory = JSON.parse(localStorage.getItem("chatMemory")) || [];
+      memory.push({ user, ai });
+
+      // Keep only the last 5 messages
+      if (memory.length > 5) {
+          memory.shift();
+      }
+
+      localStorage.setItem("chatMemory", JSON.stringify(memory));
+    }
+
+    function getMemory() {
+        return JSON.parse(localStorage.getItem("chatMemory")) || [];
+    }
+
   </script>
 </body>
 </html>
