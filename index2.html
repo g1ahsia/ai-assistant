@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot</title>
+  <style>
+    /* Reset margins, padding, and box-sizing to avoid issues */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* Body styles */
+    body {
+      font-family: Helvetica, sans-serif;
+      font-size: 16px; /* Set base font size to 16px */
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f4f4f4;
+      overflow: hidden; /* Disable scrolling for the whole body */
+    }
+
+    /* Chat window styles */
+    #chat-window {
+      flex-grow: 1;  /* Allow chat window to grow and take available space */
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 50px; /* Space for the input box */
+      border: 1px solid #ccc;
+      background-color: #fff;
+      padding: 10px;
+      box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+      overflow-y: auto; /* Make chat window scrollable */
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 50px);  /* Make the chat window adjust to fill the available space */
+      position: relative;
+    }
+
+    #chat-window .message {
+      display: flex;
+      margin-bottom: 10px;
+      max-width: 100%;
+    }
+
+    #chat-window .message p {
+      margin: 0;
+      padding: 10px 15px;
+      border-radius: 20px;
+      word-wrap: break-word;
+      display: inline-block;
+      max-width: 70%;
+    }
+
+    .user {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* User's message style */
+    .user p {
+      background-color: #f1f1f1;
+      color: black;
+      text-align: left;
+      align-self: flex-end;
+      max-width: 70%;
+      word-wrap: break-word;
+      padding: 10px 15px;
+      border-radius: 20px;
+      flex-grow: 1; /* Make the message stretch to the right */
+
+    }
+
+    .bot {
+      display: flex;
+      justify-content: flex-start; /* Align to the left */
+      width: 100%;
+    }
+
+    /* Bot's message style */
+    .bot p {
+/*      background-color: #d4edda;*/
+      color: black;
+      text-align: left;
+      flex-grow: 1; /* Make the message stretch to the right */
+      padding: 10px 15px;
+      border-radius: 20px;
+      word-wrap: break-word;
+      width: 100%;
+      max-width: 100%; /* Allow the bubble to take up the entire space */
+    }
+
+    /* Query input box at the bottom */
+    #input-box {
+      display: flex;
+      width: 90%;
+      max-width: 600px;
+      position: fixed;
+      bottom: 10px; /* Position the input box at the bottom */
+      background-color: white; /* Ensure it has a solid background */
+      z-index: 10; /* Ensure it stays above the chat window */
+      padding: 10px 0;
+      justify-content: center;
+    }
+
+    #query {
+      flex: 1;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      outline: none;
+    }
+
+    #send {
+      padding: 10px 20px;
+      background: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #send:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Chat window -->
+  <div id="chat-window"></div>
+
+  <!-- Input box at the bottom -->
+  <div id="input-box">
+    <input type="text" id="query" placeholder="Type your message here..." />
+    <button id="send">Send it</button>
+  </div>
+
+  <script>
+    const chatWindow = document.getElementById('chat-window');
+    const queryInput = document.getElementById('query');
+    const sendButton = document.getElementById('send');
+
+    // Function to set the chat window height dynamically
+    function setChatWindowHeight() {
+      const windowHeight = window.innerHeight;
+      const inputBoxHeight = document.getElementById('input-box').offsetHeight;
+      const availableHeight = windowHeight - inputBoxHeight;
+
+      // Apply the calculated height to the chat window
+      chatWindow.style.height = `${availableHeight}px`;
+    }
+
+    // Call setChatWindowHeight on page load and window resize
+    window.addEventListener('load', setChatWindowHeight);
+    window.addEventListener('resize', setChatWindowHeight);
+
+    // Function to convert text to bullet points if it contains lines with "-" or "*"
+    function formatBulletPoints(text) {
+      // Split the text by newline to check for lines starting with bullet markers
+      const lines = text.split('\n');
+      const formattedText = lines.map(line => {
+        if (line.trim().startsWith('-') || line.trim().startsWith('*')) {
+          // Convert lines starting with - or * into list items
+          return `<li>${line.trim().slice(1).trim()}</li>`; // Remove the bullet marker (- or *) and add list item
+        }
+        return `<p>${line}</p>`; // Regular paragraph if it's not a bullet point
+      }).join('');
+      
+      return formattedText;
+    }
+
+
+    // Function to add messages to the chat window
+    function addMessage(text, sender) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${sender}`;
+      // const messageBubble = document.createElement('p');
+      const messageBubble = document.createElement('div'); // Use div to allow for multiple elements inside
+      messageBubble.className = 'message-bubble';
+
+      const formattedMessage = formatBulletPoints(text);
+
+      messageBubble.innerHTML = formattedMessage; // Set the formatted message (which could contain <ul> or <li>)
+
+      // messageBubble.textContent = text;
+      messageDiv.appendChild(messageBubble);
+      chatWindow.appendChild(messageDiv);
+      chatWindow.scrollTop = chatWindow.scrollHeight; // Auto scroll to the bottom
+    }
+
+    // Event listener for the send button
+    sendButton.addEventListener('click', async () => {
+      const query = queryInput.value.trim();
+      if (!query) return;
+
+      // Display user query
+      addMessage(query, 'user');
+      queryInput.value = ''; // Clear input
+
+      // Send query to the server
+      try {
+        const response = await fetch('https://api.pannamitta.com:3000/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query }),
+        });
+        const data = await response.json();
+
+        // Display chatbot response
+        addMessage(data.response, 'bot');
+      } catch (error) {
+        console.error('Error:', error);
+        addMessage('Error connecting to chatbot server.', 'bot');
+      }
+    });
+
+    // Allow sending message by pressing Enter key
+    queryInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendButton.click();
+      }
+    });
+
+    // Adjust chat window position on focus
+    queryInput.addEventListener('focus', () => {
+      // setTimeout(() => {
+      //   chatWindow.scrollTop = chatWindow.scrollHeight;
+      // }, 300); // Delay to ensure keyboard shows up
+      setChatWindowHeight();
+    });
+
+    // Adjust the layout if keyboard is hidden
+    queryInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        setChatWindowHeight(); // Recalculate window height when keyboard disappears
+        chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to the bottom
+      }, 300); // Delay to ensure keyboard disappears
+    });
+
+    // Detect when the keyboard opens/closes
+    window.addEventListener('resize', () => {
+      if (window.innerHeight < 500) {
+        // Keyboard is visible, adjust layout accordingly
+        setChatWindowHeight();
+      } else {
+        // Keyboard is hidden, reset the height
+        setChatWindowHeight();
+      }
+    });
+  </script>
+
+</body>
+</html>

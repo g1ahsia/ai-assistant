@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panlo - Your Personal Files AI Assistant | 您的個人檔案 AI 助手</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .hero-gradient {
+            background: linear-gradient(to right, #4f46e5, #7c3aed);
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            transition: transform 0.3s ease;
+        }
+        .lang-switch {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 50;
+        }
+        [lang="en"] .zh-content {
+            display: none;
+        }
+        [lang="zh"] .en-content {
+            display: none;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased text-gray-900 bg-gray-50" lang="zh">
+    <!-- Language Switcher -->
+    <div class="lang-switch">
+        <button id="lang-toggle" class="bg-indigo-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <span class="en-content">中文</span>
+            <span class="zh-content">English</span>
+        </button>
+    </div>
+
+    <!-- 導航欄 / Navigation Bar -->
+    <nav class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <span class="text-2xl font-bold text-indigo-600">Panlo</span>
+                    </div>
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                        <a href="#home" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <span class="zh-content">首頁</span>
+                            <span class="en-content">Home</span>
+                        </a>
+                        <a href="#features" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <span class="zh-content">功能介紹</span>
+                            <span class="en-content">Features</span>
+                        </a>
+                        <a href="#download" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <span class="zh-content">下載</span>
+                            <span class="en-content">Download</span>
+                        </a>
+                        <a href="#faq" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <span class="zh-content">常見問題</span>
+                            <span class="en-content">FAQ</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="-mr-2 flex items-center sm:hidden">
+                    <button type="button" class="mobile-menu-button inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500" aria-expanded="false">
+                        <span class="sr-only">
+                            <span class="zh-content">開啟主選單</span>
+                            <span class="en-content">Open main menu</span>
+                        </span>
+                        <svg class="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 行動裝置選單 / Mobile menu -->
+        <div class="mobile-menu hidden sm:hidden">
+            <div class="pt-2 pb-3 space-y-1">
+                <a href="#home" class="bg-indigo-50 border-indigo-500 text-indigo-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <span class="zh-content">首頁</span>
+                    <span class="en-content">Home</span>
+                </a>
+                <a href="#features" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <span class="zh-content">功能介紹</span>
+                    <span class="en-content">Features</span>
+                </a>
+                <a href="#download" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <span class="zh-content">下載</span>
+                    <span class="en-content">Download</span>
+                </a>
+                <a href="#faq" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <span class="zh-content">常見問題</span>
+                    <span class="en-content">FAQ</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 首頁區塊 / Home Section -->
+    <section id="home" class="hero-gradient">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
+            <div class="md:w-2/3">
+                <h1 class="text-4xl font-extrabold tracking-tight text-white sm:text-5xl md:text-6xl">
+                    <span class="block">Panlo</span>
+                    <span class="block text-indigo-200">
+                        <span class="zh-content">您的個人檔案 AI 助手</span>
+                        <span class="en-content">Your Personal Files AI Assistant</span>
+                    </span>
+                </h1>
+                <p class="mt-6 text-xl text-indigo-100 max-w-3xl">
+                    <span class="zh-content">Panlo 是一款智能 AI 桌面應用程式，能夠讀取您的個人檔案，並回答關於這些檔案的任何問題。讓資料查詢變得簡單、直覺且高效。</span>
+                    <span class="en-content">Panlo is an intelligent AI desktop application that can read your personal files and answer any questions about them. Making data queries simple, intuitive, and efficient.</span>
+                </p>
+                <div class="mt-10 flex flex-col sm:flex-row gap-4">
+                    <a href="#download" class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 md:py-4 md:text-lg md:px-10">
+                        <span class="zh-content">立即下載</span>
+                        <span class="en-content">Download Now</span>
+                    </a>
+                    <a href="#features" class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10">
+                        <span class="zh-content">了解更多</span>
+                        <span class="en-content">Learn More</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 功能介紹區塊 / Features Section -->
+    <section id="features" class="py-16 bg-gray-50 overflow-hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <h2 class="text-base font-semibold text-indigo-600 tracking-wide uppercase">
+                    <span class="zh-content">強大功能</span>
+                    <span class="en-content">Powerful Features</span>
+                </h2>
+                <p class="mt-1 text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight">
+                    <span class="zh-content">為什麼選擇 Panlo</span>
+                    <span class="en-content">Why Choose Panlo?</span>
+                </p>
+                <p class="max-w-xl mt-5 mx-auto text-xl text-gray-500">
+                    <span class="zh-content">Panlo 讓您以全新方式與個人檔案互動，提供直覺且智能的檔案查詢體驗。</span>
+                    <span class="en-content">Panlo allows you to interact with your personal files in a completely new way, providing an intuitive and intelligent file query experience.</span>
+                </p>
+            </div>
+
+            <div class="mt-16">
+                <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
+                    <div class="pt-6 feature-card">
+                        <div class="flow-root bg-white rounded-lg px-6 pb-8 shadow-md">
+                            <div class="-mt-6">
+                                <div>
+                                    <span class="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
+                                        <svg class="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                        </svg>
+                                    </span>
+                                </div>
+                                <h3 class="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                                    <span class="zh-content">自然語言查詢</span>
+                                    <span class="en-content">Natural Language Queries</span>
+                                </h3>
+                                <p class="mt-5 text-base text-gray-500">
+                                    <span class="zh-content">使用日常語言提問，無需複雜的搜尋語法。就像與助手對話一樣簡單。</span>
+                                    <span class="en-content">Ask questions using everyday language, no complex search syntax needed. It's as simple as having a conversation with an assistant.</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-6 feature-card">
+                        <div class="flow-root bg-white rounded-lg px-6 pb-8 shadow-md">
+                            <div class="-mt-6">
+                                <div>
+                                    <span class="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
+                                        <svg class="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                        </svg>
+                                    </span>
+                                </div>
+                                <h3 class="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                                    <span class="zh-content">隱私保護</span>
+                                    <span class="en-content">Privacy Protection</span>
+                                </h3>
+                                <p class="mt-5 text-base text-gray-500">
+                                    <span class="zh-content">所有處理都在本地進行，您的檔案和查詢不會上傳到雲端，確保資料安全。</span>
+                                    <span class="en-content">All processing is done locally, your files and queries are not uploaded to the cloud, ensuring data security.</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-6 feature-card">
+                        <div class="flow-root bg-white rounded-lg px-6 pb-8 shadow-md">
+                            <div class="-mt-6">
+                                <div>
+                                    <span class="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
+                                        <svg class="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                                        </svg>
+                                    </span>
+                                </div>
+                                <h3 class="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                                    <span class="zh-content">多種檔案格式支援</span>
+                                    <span class="en-content">Multiple File Format Support</span>
+                                </h3>
+                                <p class="mt-5 text-base text-gray-500">
+                                    <span class="zh-content">支援各種常見檔案格式，包括文件、表格、PDF等，讓您輕鬆查詢所有資料。</span>
+                                    <span class="en-content">Supports various common file formats, including documents, spreadsheets, PDFs, and more, allowing you to easily query all your data.</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 下載區塊 / Download Section -->
+    <section id="download" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <h2 class="text-3xl font-extrabold text-gray-900">
+                    <span class="zh-content">選擇您的平台</span>
+                    <span class="en-content">Choose Your Platform</span>
+                </h2>
+                <p class="mt-4 text-lg text-gray-500">
+                    <span class="zh-content">Panlo 支援 macOS 和 Windows 平台，選擇適合您系統的版本下載。</span>
+                    <span class="en-content">Panlo supports macOS and Windows platforms. Choose the version that suits your system.</span>
+                </p>
+            </div>
+
+            <div class="mt-12 grid gap-8 md:grid-cols-2">
+                <!-- macOS Download -->
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="px-4 py-5 sm:p-6">
+                        <div class="flex items-center justify-center h-24">
+                            <svg class="h-20 w-20 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 3v18m0 0l-5.5-5.5M9 21l5.5-5.5M19 3v18m0 0l-5.5-5.5M19 21l5.5-5.5" />
+                            </svg>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <h3 class="text-lg font-medium text-gray-900">
+                                <span class="zh-content">macOS 版本</span>
+                                <span class="en-content">macOS Version</span>
+                            </h3>
+                            <p class="mt-2 text-sm text-gray-500">
+                                <span class="zh-content">適用於 macOS 10.15 (Catalina) 及以上版本</span>
+                                <span class="en-content">Compatible with macOS 10.15 (Catalina) and above</span>
+                            </p>
+                            <div class="mt-6">
+                                <a href="Panlo-macOS.dmg" download class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <span class="zh-content">下載 macOS 版本</span>
+                                    <span class="en-content">Download for macOS</span>
+                                </a>
+                            </div>
+                            <p class="mt-2 text-xs text-gray-500">
+                                <span class="zh-content">版本 1.0.0 | 檔案大小：約 10MB</span>
+                                <span class="en-content">Version 1.0.0 | File size: approx. 10MB</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Windows Download -->
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="px-4 py-5 sm:p-6">
+                        <div class="flex items-center justify-center h-24">
+                            <svg class="h-20 w-20 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 6h16M4 12h16m-7 6h7" />
+                            </svg>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <h3 class="text-lg font-medium text-gray-900">
+                                <span class="zh-content">Windows 版本</span>
+                                <span class="en-content">Windows Version</span>
+                            </h3>
+                            <p class="mt-2 text-sm text-gray-500">
+                                <span class="zh-content">適用於 Windows 10 及以上版本</span>
+                                <span class="en-content">Compatible with Windows 10 and above</span>
+                            </p>
+                            <div class="mt-6">
+                                <a href="Panlo-Windows.exe" download class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <span class="zh-content">下載 Windows 版本</span>
+                                    <span class="en-content">Download for Windows</span>
+                                </a>
+                            </div>
+                            <p class="mt-2 text-xs text-gray-500">
+                                <span class="zh-content">版本 1.0.0 | 檔案大小：約 10MB</span>
+                                <span class="en-content">Version 1.0.0 | File size: approx. 10MB</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 安裝說明 / Installation Instructions -->
+            <div class="mt-16">
+                <h3 class="text-2xl font-bold text-gray-900 text-center">
+                    <span class="zh-content">安裝說明</span>
+                    <span class="en-content">Installation Instructions</span>
+                </h3>
+                <div class="mt-8 grid gap-8 md:grid-cols-2">
+                    <div class="bg-white overflow-hidden shadow rounded-lg">
+                        <div class="px-4 py-5 sm:p-6">
+                            <h4 class="text-lg font-medium text-gray-900">
+                                <span class="zh-content">macOS 安裝步驟</span>
+                                <span class="en-content">macOS Installation Steps</span>
+                            </h4>
+                            <ol class="mt-4 ml-4 space-y-2 text-gray-500 list-decimal">
+                                <li>
+                                    <span class="zh-content">下載 Panlo-macOS.dmg 檔案</span>
+                                    <span class="en-content">Download the Panlo-macOS.dmg file</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">開啟下載的 .dmg 檔案</span>
+                                    <span class="en-content">Open the downloaded .dmg file</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">將 Panlo 應用程式拖曳到「應用程式」資料夾</span>
+                                    <span class="en-content">Drag the Panlo application to the Applications folder</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">從「應用程式」資料夾或 Launchpad 開啟 Panlo</span>
+                                    <span class="en-content">Open Panlo from the Applications folder or Launchpad</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">首次開啟時，可能需要在「系統偏好設定」中允許來自已識別開發者的應用程式</span>
+                                    <span class="en-content">When opening for the first time, you may need to allow apps from identified developers in System Preferences</span>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="bg-white overflow-hidden shadow rounded-lg">
+                        <div class="px-4 py-5 sm:p-6">
+                            <h4 class="text-lg font-medium text-gray-900">
+                                <span class="zh-content">Windows 安裝步驟</span>
+                                <span class="en-content">Windows Installation Steps</span>
+                            </h4>
+                            <ol class="mt-4 ml-4 space-y-2 text-gray-500 list-decimal">
+                                <li>
+                                    <span class="zh-content">下載 Panlo-Windows.exe 檔案</span>
+                                    <span class="en-content">Download the Panlo-Windows.exe file</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">開啟下載的 .exe 檔案</span>
+                                    <span class="en-content">Open the downloaded .exe file</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">依照安裝精靈的指示完成安裝</span>
+                                    <span class="en-content">Follow the installation wizard instructions to complete the installation</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">從桌面捷徑或開始選單開啟 Panlo</span>
+                                    <span class="en-content">Open Panlo from the desktop shortcut or Start menu</span>
+                                </li>
+                                <li>
+                                    <span class="zh-content">首次開啟時，可能需要允許應用程式存取您的檔案</span>
+                                    <span class="en-content">When opening for the first time, you may need to allow the application to access your files</span>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 常見問題區塊 / FAQ Section -->
+    <section id="faq" class="py-16 bg-gray-50">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-2xl mx-auto divide-y-2 divide-gray-200">
+                <h2 class="text-3xl font-extrabold text-gray-900 sm:text-4xl text-center mb-8">
+                    <span class="zh-content">常見問題解答</span>
+                    <span class="en-content">Frequently Asked Questions</span>
+                </h2>
+                <dl class="mt-6 space-y-6 divide-y divide-gray-200">
+                    <!-- FAQ 項目 / FAQ Items -->
+                    <div class="pt-6">
+                        <dt class="text-lg">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
+                                <span class="font-medium text-gray-900">
+                                    <span class="zh-content">Panlo 是什麼？</span>
+                                    <span class="en-content">What is Panlo?</span>
+                                </span>
+                                <span class="ml-6 h-7 flex items-center">
+                                    <svg class="faq-icon h-6 w-6 transform text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </span>
+                            </button>
+                        </dt>
+                        <dd class="faq-answer mt-2 pr-12 hidden">
+                            <p class="text-base text-gray-500">
+                                <span class="zh-content">Panlo 是一款智能 AI 桌面應用程式，能夠讀取您的個人檔案，並回答關於這些檔案的任何問題。它使用先進的人工智能技術，讓您能夠以自然語言查詢檔案內容，無需手動搜尋或閱讀大量文件。</span>
+                                <span class="en-content">Panlo is an intelligent AI desktop application that can read your personal files and answer any questions about them. It uses advanced artificial intelligence technology to allow you to query file contents using natural language, eliminating the need to manually search or read through large documents.</span>
+                            </p>
+                        </dd>
+                    </div>
+
+                    <div class="pt-6">
+                        <dt class="text-lg">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
+                                <span class="font-medium text-gray-900">
+                                    <span class="zh-content">Panlo 支援哪些作業系統？</span>
+                                    <span class="en-content">Which operating systems does Panlo support?</span>
+                                </span>
+                                <span class="ml-6 h-7 flex items-center">
+                                    <svg class="faq-icon h-6 w-6 transform text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </span>
+                            </button>
+                        </dt>
+                        <dd class="faq-answer mt-2 pr-12 hidden">
+                            <p class="text-base text-gray-500">
+                                <span class="zh-content">Panlo 目前支援 macOS 和 Windows 作業系統。macOS 版本需要 macOS 10.15 (Catalina) 或更高版本；Windows 版本需要 Windows 10 或更高版本。</span>
+                                <span class="en-content">Panlo currently supports macOS and Windows operating systems. The macOS version requires macOS 10.15 (Catalina) or higher; the Windows version requires Windows 10 or higher.</span>
+                            </p>
+                        </dd>
+                    </div>
+
+                    <div class="pt-6">
+                        <dt class="text-lg">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
+                                <span class="font-medium text-gray-900">
+                                    <span class="zh-content">我的檔案資料安全嗎？</span>
+                                    <span class="en-content">Is my file data secure?</span>
+                                </span>
+                                <span class="ml-6 h-7 flex items-center">
+                                    <svg class="faq-icon h-6 w-6 transform text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </span>
+                            </button>
+                        </dt>
+                        <dd class="faq-answer mt-2 pr-12 hidden">
+                            <p class="text-base text-gray-500">
+                                <span class="zh-content">Panlo 將所有處理都在您的本地電腦上進行，您的檔案和查詢不會上傳到雲端。這確保了您的敏感資料始終保持私密和安全，同時仍能享受先進的 AI 查詢功能。</span>
+                                <span class="en-content">Yes, your data security is our top priority. Panlo processes everything locally on your computer, and your files and queries are not uploaded to the cloud. This ensures that your sensitive data remains private and secure while still enjoying advanced AI query capabilities.</span>
+                            </p>
+                        </dd>
+                    </div>
+
+                    <div class="pt-6">
+                        <dt class="text-lg">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
+                                <span class="font-medium text-gray-900">
+                                    <span class="zh-content">如何使用 Panlo 查詢我的檔案？</span>
+                                    <span class="en-content">How do I use Panlo to query my files?</span>
+                                </span>
+                                <span class="ml-6 h-7 flex items-center">
+                                    <svg class="faq-icon h-6 w-6 transform text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </span>
+                            </button>
+                        </dt>
+                        <dd class="faq-answer mt-2 pr-12 hidden">
+                            <p class="text-base text-gray-500">
+                                <span class="zh-content">使用 Panlo 非常簡單：<br>
+                                1. 開啟 Panlo 應用程式<br>
+                                2. 導入您想要查詢的檔案或資料夾<br>
+                                3. 在查詢框中輸入您的問題（使用自然語言）<br>
+                                4. Panlo 將分析您的檔案並提供答案<br><br>
+                                您可以詢問各種問題，例如「上個月的銷售報告中，哪個產品表現最好？」或「我的研究論文中關於氣候變化的主要觀點是什麼？」</span>
+                                <span class="en-content">Using Panlo is very simple:<br>
+                                1. Open the Panlo application<br>
+                                2. Import the files or folders you want to query<br>
+                                3. Enter your question in the query box (using natural language)<br>
+                                4. Panlo will analyze your files and provide answers<br><br>
+                                You can ask various questions, such as "Which product performed best in last month's sales report?" or "What are the main points about climate change in my research paper?"</span>
+                            </p>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+
+            <!-- 聯絡我們 / Contact Us -->
+            <div class="mt-16 bg-indigo-50 rounded-lg p-8">
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-gray-900">
+                        <span class="zh-content">還有其他問題？</span>
+                        <span class="en-content">Have more questions?</span>
+                    </h3>
+                    <p class="mt-4 text-lg text-gray-500">
+                        <span class="zh-content">如果您沒有找到您的問題的答案，請隨時與我們聯繫。</span>
+                        <span class="en-content">If you couldn't find the answer to your question, feel free to contact us.</span>
+                    </p>
+                    <div class="mt-6">
+                        <a href="mailto:contact@panlo.com" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <span class="zh-content">聯絡我們</span>
+                            <span class="en-content">Contact Us</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 頁尾 / Footer -->
+    <footer class="bg-gray-800 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Panlo</h3>
+                    <p class="text-gray-300">
+                        <span class="zh-content">您的個人檔案AI助手，讓您輕鬆查詢和理解個人檔案中的資訊。</span>
+                        <span class="en-content">Your personal files AI assistant, making it easy to query and understand information in your personal files.</span>
+                    </p>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">
+                        <span class="zh-content">快速連結</span>
+                        <span class="en-content">Quick Links</span>
+                    </h3>
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="#home" class="text-gray-300 hover:text-white">
+                                <span class="zh-content">首頁</span>
+                                <span class="en-content">Home</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#features" class="text-gray-300 hover:text-white">
+                                <span class="zh-content">功能介紹</span>
+                                <span class="en-content">Features</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#download" class="text-gray-300 hover:text-white">
+                                <span class="zh-content">下載</span>
+                                <span class="en-content">Download</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#faq" class="text-gray-300 hover:text-white">
+                                <span class="zh-content">常見問題</span>
+                                <span class="en-content">FAQ</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">
+                        <span class="zh-content">聯絡我們</span>
+                        <span class="en-content">Contact Us</span>
+                    </h3>
+                    <p class="text-gray-300">
+                        <span class="zh-content">如有任何問題或建議，請隨時與我們聯繫。</span>
+                        <span class="en-content">If you have any questions or suggestions, please feel free to contact us.</span>
+                    </p>
+                    <p class="text-gray-300 mt-2">
+                        <span class="zh-content">電子郵件：contact@panlo.com</span>
+                        <span class="en-content">Email: contact@panlo.com</span>
+                    </p>
+                </div>
+            </div>
+            <div class="mt-8 pt-8 border-t border-gray-700 text-center">
+                <p class="text-gray-300">
+                    &copy; <span id="current-year"></span> Panlo. 
+                    <span class="zh-content">保留所有權利。</span>
+                    <span class="en-content">All rights reserved.</span>
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 設置當前年份 / Set current year
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+
+        // 語言切換 / Language switching
+        document.getElementById('lang-toggle').addEventListener('click', function() {
+            const body = document.body;
+            if (body.getAttribute('lang') === 'zh') {
+                body.setAttribute('lang', 'en');
+                localStorage.setItem('panlo-lang', 'en');
+            } else {
+                body.setAttribute('lang', 'zh');
+                localStorage.setItem('panlo-lang', 'zh');
+            }
+        });
+
+        // 載入時檢查語言設置 / Check language setting on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedLang = localStorage.getItem('panlo-lang');
+            if (savedLang) {
+                document.body.setAttribute('lang', savedLang);
+            }
+        });
+
+        // 行動裝置選單切換 / Mobile menu toggle
+        document.querySelector('.mobile-menu-button').addEventListener('click', function() {
+            document.querySelector('.mobile-menu').classList.toggle('hidden');
+        });
+
+        // FAQ 切換 / FAQ toggle
+        document.querySelectorAll('.faq-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const answer = this.parentElement.nextElementSibling;
+                const icon = this.querySelector('.faq-icon');
+                
+                // 切換顯示/隱藏 / Toggle display/hide
+                if (answer.classList.contains('hidden')) {
+                    answer.classList.remove('hidden');
+                    icon.classList.add('-rotate-180');
+                } else {
+                    answer.classList.add('hidden');
+                    icon.classList.remove('-rotate-180');
+                }
+            });
+        });
+
+        // 平滑滾動 / Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop,
+                        behavior: 'smooth'
+                    });
+                    
+                    // 如果是在行動裝置選單中點擊，則關閉選單 / If clicked in mobile menu, close the menu
+                    document.querySelector('.mobile-menu').classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
