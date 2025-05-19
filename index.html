@@ -4,68 +4,425 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panlo - Your Personal Files AI Assistant | 您的個人檔案 AI 助手</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
     <style>
-
-        .hero-gradient {
-            background: linear-gradient(to right, #4f46e5, #7c3aed);
+        :root {
+            --primary-color: #4f46e5;
+            --primary-dark: #3730a3;
+            --primary-light: #818cf8;
+            --accent-color: #10b981;
+            --dark-bg: #111827;
+            --dark-card: #1f2937;
+            --dark-text: #f3f4f6;
         }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            scroll-behavior: smooth;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        .hero-gradient {
+            background: linear-gradient(135deg, var(--primary-color), #7c3aed);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-gradient::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxkZWZzPjxwYXR0ZXJuIGlkPSJwYXR0ZXJuIiB4PSIwIiB5PSIwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiIHBhdHRlcm5UcmFuc2Zvcm09InJvdGF0ZSgzMCkiPjxyZWN0IHg9IjAiIHk9IjAiIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSI+PC9yZWN0PjwvcGF0dGVybj48L2RlZnM+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNwYXR0ZXJuKSI+PC9yZWN0Pjwvc3ZnPg==');
+            opacity: 0.4;
+        }
+
+        #particles-js {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .feature-card {
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+        
         .feature-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feature-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            transform: scaleX(0);
+            transform-origin: left;
             transition: transform 0.3s ease;
         }
+        
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .feature-icon {
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+        }
+        
+        .feature-card:hover .feature-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+        
+        .download-card {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .download-card::after {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 70%);
+            transform: rotate(45deg);
+            transition: all 1s ease;
+            opacity: 0;
+        }
+        
+        .download-card:hover::after {
+            opacity: 1;
+            left: 100%;
+            top: 100%;
+        }
+        
+        .download-button {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .download-button::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.5s ease;
+        }
+        
+        .download-button:hover::before {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .faq-item {
+            transition: all 0.3s ease;
+        }
+        
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease, padding 0.5s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+        
+        .faq-answer.active {
+            max-height: 500px;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            opacity: 1;
+        }
+        
+        .faq-icon {
+            transition: transform 0.3s ease;
+        }
+        
         .lang-switch {
             position: fixed;
             top: 1rem;
             right: 1rem;
             z-index: 50;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
+        
+        .theme-switch {
+            position: fixed;
+            top: 1rem;
+            right: 5rem;
+            z-index: 50;
+        }
+        
         [lang="en"] .zh-content {
             display: none;
         }
+        
         [lang="zh"] .en-content {
             display: none;
         }
+        
+        .typing-cursor {
+            color: var(--accent-color);
+        }
+        
+        .scroll-indicator {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0) translateX(-50%);
+            }
+            40% {
+                transform: translateY(-20px) translateX(-50%);
+            }
+            60% {
+                transform: translateY(-10px) translateX(-50%);
+            }
+        }
+        
+        .nav-link {
+            position: relative;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            bottom: 0;
+            left: 0;
+            background-color: var(--primary-color);
+            transform: scaleX(0);
+            transform-origin: bottom right;
+            transition: transform 0.3s ease;
+        }
+        
+        .nav-link:hover::after {
+            transform-origin: bottom left;
+            transform: scaleX(1);
+        }
+        
+        .nav-link.active::after {
+            transform: scaleX(1);
+        }
+        
+        .ai-badge {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        
+        .ai-badge::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: white;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 5px rgba(255, 255, 255, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+            }
+        }
+        
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease;
+        }
+        
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .demo-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .demo-header {
+            background: linear-gradient(90deg, var(--primary-color), var(--primary-dark));
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .demo-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .demo-content {
+            padding: 1rem;
+            height: 300px;
+            overflow-y: auto;
+        }
+        
+        .demo-message {
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            max-width: 80%;
+        }
+        
+        .demo-user {
+            background-color: #e5e7eb;
+            color: #111827;
+            margin-left: auto;
+        }
+        
+        .demo-ai {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .demo-typing {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .demo-typing span {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: white;
+            animation: typing 1.5s infinite;
+        }
+        
+        .demo-typing span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .demo-typing span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-4px);
+            }
+        }
     </style>
 </head>
-<body class="font-sans antialiased text-gray-900 bg-gray-50" lang="zh">
+<body class="antialiased text-gray-900 bg-gray-50" lang="zh">
+    <!-- Particles Background -->
+    <div id="particles-js" class="fixed inset-0 z-0 opacity-30 pointer-events-none"></div>
+    
     <!-- Language Switcher -->
     <div class="lang-switch">
-        <button id="lang-toggle" class="bg-indigo-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        <button id="lang-toggle" class="bg-indigo-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105">
             <span class="en-content">中文</span>
             <span class="zh-content">English</span>
         </button>
     </div>
+    
+    <!-- Theme Switcher -->
+    <div class="theme-switch">
+        <div class="theme-toggle" class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-300 transform hover:scale-105">
+            <span class="light-icon"></span>
+            <span class="dark-icon hidden"></span>
+        </div>
+    </div>
 
     <!-- 導航欄 / Navigation Bar -->
-    <nav class="bg-white shadow-md">
+    <nav class="bg-white dark:bg-gray-900 shadow-md sticky top-0 z-40 transition-all duration-300">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex">
                     <div class="flex-shrink-0 flex items-center">
-                        <span class="text-2xl font-bold text-indigo-600">Panlo</span>
+                        <span class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Panlo</span>
                     </div>
                     <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="#home" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="#home" class="nav-link active border-indigo-500 text-gray-900 dark:text-gray-100 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-all duration-300">
                             <span class="zh-content">首頁</span>
                             <span class="en-content">Home</span>
                         </a>
-                        <a href="#features" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="#features" class="nav-link border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-all duration-300">
                             <span class="zh-content">功能介紹</span>
                             <span class="en-content">Features</span>
                         </a>
-                        <a href="#download" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="#demo" class="nav-link border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-all duration-300">
+                            <span class="zh-content">互動展示</span>
+                            <span class="en-content">Demo</span>
+                        </a>
+                        <a href="#download" class="nav-link border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-all duration-300">
                             <span class="zh-content">下載</span>
                             <span class="en-content">Download</span>
                         </a>
-                        <a href="#faq" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="#faq" class="nav-link border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-all duration-300">
                             <span class="zh-content">常見問題</span>
                             <span class="en-content">FAQ</span>
                         </a>
                     </div>
                 </div>
                 <div class="-mr-2 flex items-center sm:hidden">
-                    <button type="button" class="mobile-menu-button inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500" aria-expanded="false">
+                    <button type="button" class="mobile-menu-button inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-all duration-300" aria-expanded="false">
                         <span class="sr-only">
                             <span class="zh-content">開啟主選單</span>
                             <span class="en-content">Open main menu</span>
@@ -81,19 +438,23 @@
         <!-- 行動裝置選單 / Mobile menu -->
         <div class="mobile-menu hidden sm:hidden">
             <div class="pt-2 pb-3 space-y-1">
-                <a href="#home" class="bg-indigo-50 border-indigo-500 text-indigo-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                <a href="#home" class="bg-indigo-50 dark:bg-indigo-900 border-indigo-500 text-indigo-700 dark:text-indigo-200 block pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-all duration-300">
                     <span class="zh-content">首頁</span>
                     <span class="en-content">Home</span>
                 </a>
-                <a href="#features" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                <a href="#features" class="border-transparent text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 block pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-all duration-300">
                     <span class="zh-content">功能介紹</span>
                     <span class="en-content">Features</span>
                 </a>
-                <a href="#download" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                <a href="#demo" class="border-transparent text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 block pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-all duration-300">
+                    <span class="zh-content">互動展示</span>
+                    <span class="en-content">Demo</span>
+                </a>
+                <a href="#download" class="border-transparent text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 block pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-all duration-300">
                     <span class="zh-content">下載</span>
                     <span class="en-content">Download</span>
                 </a>
-                <a href="#faq" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                <a href="#faq" class="border-transparent text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 hover:text-gray-700 dark:hover:text-gray-200 block pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-all duration-300">
                     <span class="zh-content">常見問題</span>
                     <span class="en-content">FAQ</span>
                 </a>
@@ -102,14 +463,18 @@
     </nav>
 
     <!-- 首頁區塊 / Home Section -->
-    <section id="home" class="hero-gradient">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
+    <section id="home" class="hero-gradient relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32 hero-content">
             <div class="md:w-2/3">
+                <div class="ai-badge">
+                    <span class="zh-content">AI 驅動</span>
+                    <span class="en-content">AI Powered</span>
+                </div>
                 <h1 class="text-4xl font-extrabold tracking-tight text-white sm:text-5xl md:text-6xl">
                     <span class="block">Panlo</span>
                     <span class="block text-indigo-200">
-                        <span class="zh-content">您的個人檔案 AI 助手</span>
-                        <span class="en-content">Your Personal Files AI Assistant</span>
+                        <span class="zh-content" id="typing-zh"></span>
+                        <span class="en-content" id="typing-en"></span>
                     </span>
                 </h1>
                 <p class="mt-6 text-xl text-indigo-100 max-w-3xl">
@@ -117,32 +482,37 @@
                     <span class="en-content">Panlo is an intelligent AI desktop application that can read your personal files and answer any questions about them. Making data queries simple, intuitive, and efficient.</span>
                 </p>
                 <div class="mt-10 flex flex-col sm:flex-row gap-4">
-                    <a href="#download" class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 md:py-4 md:text-lg md:px-10">
+                    <a href="#download" class="download-button inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 md:py-4 md:text-lg md:px-10 transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
                         <span class="zh-content">立即下載</span>
                         <span class="en-content">Download Now</span>
                     </a>
-                    <a href="#features" class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10">
+                    <a href="#features" class="download-button inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10 transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
                         <span class="zh-content">了解更多</span>
                         <span class="en-content">Learn More</span>
                     </a>
                 </div>
             </div>
+            <div class="scroll-indicator">
+                <svg class="w-6 h-6 text-white animate-bounce" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" stroke="currentColor">
+                    <path d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                </svg>
+            </div>
         </div>
     </section>
 
     <!-- 功能介紹區塊 / Features Section -->
-    <section id="features" class="py-16 bg-gray-50 overflow-hidden">
+    <section id="features" class="py-16 bg-gray-50 dark:bg-gray-900 overflow-hidden">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center">
-                <h2 class="text-base font-semibold text-indigo-600 tracking-wide uppercase">
+                <div class="ai-badge mx-auto">
                     <span class="zh-content">強大功能</span>
                     <span class="en-content">Powerful Features</span>
-                </h2>
-                <p class="mt-1 text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight">
+                </div>
+                <p class="mt-1 text-4xl font-extrabold text-gray-900 dark:text-white sm:text-5xl sm:tracking-tight reveal">
                     <span class="zh-content">為什麼選擇 Panlo</span>
                     <span class="en-content">Why Choose Panlo?</span>
                 </p>
-                <p class="max-w-xl mt-5 mx-auto text-xl text-gray-500">
+                <p class="max-w-xl mt-5 mx-auto text-xl text-gray-500 dark:text-gray-300 reveal">
                     <span class="zh-content">Panlo 讓您以全新方式與個人檔案互動，提供直覺且智能的檔案查詢體驗。</span>
                     <span class="en-content">Panlo allows you to interact with your personal files in a completely new way, providing an intuitive and intelligent file query experience.</span>
                 </p>
@@ -150,67 +520,67 @@
 
             <div class="mt-16">
                 <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
-                    <div class="pt-6 feature-card">
-                        <div class="flow-root bg-white rounded-lg px-6 pb-8 shadow-md">
+                    <div class="pt-6 feature-card relative bg-white dark:bg-gray-800 rounded-lg shadow-md reveal">
+                        <div class="flow-root px-6 pb-8">
                             <div class="-mt-6">
                                 <div>
-                                    <span class="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
+                                    <span class="inline-flex items-center justify-center p-3 feature-icon rounded-md shadow-lg">
                                         <svg class="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                                         </svg>
                                     </span>
                                 </div>
-                                <h3 class="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                                <h3 class="mt-8 text-lg font-medium text-gray-900 dark:text-white tracking-tight">
                                     <span class="zh-content">自然語言查詢</span>
                                     <span class="en-content">Natural Language Queries</span>
                                 </h3>
-                                <p class="mt-5 text-base text-gray-500">
-                                    <span class="zh-content">使用日常語言提問，無需複雜的搜尋語法。就像與助手對話一樣簡單。</span>
-                                    <span class="en-content">Ask questions using everyday language, no complex search syntax needed. It's as simple as having a conversation with an assistant.</span>
+                                <p class="mt-5 text-base text-gray-500 dark:text-gray-300">
+                                    <span class="zh-content">使用日常語言提問，無需複雜的搜尋語法。就像與助手對話一樣簡單。AI 引擎能夠理解您的意圖，提供精確的回答。</span>
+                                    <span class="en-content">Ask questions using everyday language, no complex search syntax needed. It's as simple as having a conversation with an assistant. The AI engine understands your intent and provides precise answers.</span>
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="pt-6 feature-card">
-                        <div class="flow-root bg-white rounded-lg px-6 pb-8 shadow-md">
+                    <div class="pt-6 feature-card relative bg-white dark:bg-gray-800 rounded-lg shadow-md reveal" style="transition-delay: 0.2s;">
+                        <div class="flow-root px-6 pb-8">
                             <div class="-mt-6">
                                 <div>
-                                    <span class="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
+                                    <span class="inline-flex items-center justify-center p-3 feature-icon rounded-md shadow-lg">
                                         <svg class="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                         </svg>
                                     </span>
                                 </div>
-                                <h3 class="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                                <h3 class="mt-8 text-lg font-medium text-gray-900 dark:text-white tracking-tight">
                                     <span class="zh-content">隱私保護</span>
                                     <span class="en-content">Privacy Protection</span>
                                 </h3>
-                                <p class="mt-5 text-base text-gray-500">
-                                    <span class="zh-content">所有處理都在您的裝置上安全進行，資料傳輸受到保護，確保您的檔案和查詢得到保護，並保證資料安全。</span>
-                                    <span class="en-content">All processing is done securely on your device, with data transfer protected, ensuring that your files and queries are safeguarded and your data security is guaranteed.</span>
+                                <p class="mt-5 text-base text-gray-500 dark:text-gray-300">
+                                    <span class="zh-content">所有處理都在本地進行，您的檔案和查詢不會上傳到雲端，確保資料安全。採用先進加密技術，保護您的敏感資訊。</span>
+                                    <span class="en-content">All processing is done locally, your files and queries are not uploaded to the cloud, ensuring data security. Advanced encryption technology is used to protect your sensitive information.</span>
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="pt-6 feature-card">
-                        <div class="flow-root bg-white rounded-lg px-6 pb-8 shadow-md">
+                    <div class="pt-6 feature-card relative bg-white dark:bg-gray-800 rounded-lg shadow-md reveal" style="transition-delay: 0.4s;">
+                        <div class="flow-root px-6 pb-8">
                             <div class="-mt-6">
                                 <div>
-                                    <span class="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
+                                    <span class="inline-flex items-center justify-center p-3 feature-icon rounded-md shadow-lg">
                                         <svg class="h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                                         </svg>
                                     </span>
                                 </div>
-                                <h3 class="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                                <h3 class="mt-8 text-lg font-medium text-gray-900 dark:text-white tracking-tight">
                                     <span class="zh-content">多種檔案格式支援</span>
                                     <span class="en-content">Multiple File Format Support</span>
                                 </h3>
-                                <p class="mt-5 text-base text-gray-500">
-                                    <span class="zh-content">支援各種常見檔案格式，包括文件、表格、PDF等，讓您輕鬆查詢所有資料。</span>
-                                    <span class="en-content">Supports various common file formats, including documents, spreadsheets, PDFs, and more, allowing you to easily query all your data.</span>
+                                <p class="mt-5 text-base text-gray-500 dark:text-gray-300">
+                                    <span class="zh-content">支援各種常見檔案格式，包括文件、Excel、PDF等，讓您輕鬆查詢所有資料。智能分析引擎能夠理解不同格式的內容結構。</span>
+                                    <span class="en-content">Supports various common file formats, including documents, spreadsheets, PDFs, and more, allowing you to easily query all your data. The intelligent analysis engine understands the content structure of different formats.</span>
                                 </p>
                             </div>
                         </div>
@@ -219,16 +589,134 @@
             </div>
         </div>
     </section>
-
-    <!-- 下載區塊 / Download Section -->
-    <section id="download" class="py-16 bg-white">
+    
+    <!-- 互動展示區塊 / Demo Section -->
+    <section id="demo" class="py-16 bg-white dark:bg-gray-800 overflow-hidden">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center">
-                <h2 class="text-3xl font-extrabold text-gray-900">
+                <div class="ai-badge mx-auto">
+                    <span class="zh-content">互動體驗</span>
+                    <span class="en-content">Interactive Experience</span>
+                </div>
+                <p class="mt-1 text-4xl font-extrabold text-gray-900 dark:text-white sm:text-5xl sm:tracking-tight reveal">
+                    <span class="zh-content">看看它如何運作</span>
+                    <span class="en-content">See How It Works</span>
+                </p>
+                <p class="max-w-xl mt-5 mx-auto text-xl text-gray-500 dark:text-gray-300 reveal">
+                    <span class="zh-content">體驗 Panlo 如何理解您的問題並提供精確的回答。</span>
+                    <span class="en-content">Experience how Panlo understands your questions and provides precise answers.</span>
+                </p>
+            </div>
+            
+            <div class="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-2">
+                <div class="demo-container bg-white dark:bg-gray-800 reveal">
+                    <div class="demo-header">
+                        <div class="demo-dot bg-red-500"></div>
+                        <div class="demo-dot bg-yellow-500"></div>
+                        <div class="demo-dot bg-green-500"></div>
+                        <div class="ml-4 text-white text-sm font-medium">
+                            <span class="zh-content">Panlo 助手</span>
+                            <span class="en-content">Panlo Assistant</span>
+                        </div>
+                    </div>
+                    <div class="demo-content bg-gray-100 dark:bg-gray-900">
+                        <div class="demo-message demo-ai">
+                            <span class="zh-content">您好！我是 Panlo，您的個人檔案 AI 助手。我可以幫您查詢任何關於您檔案的問題。請問有什麼我可以幫您的嗎？</span>
+                            <span class="en-content">Hello! I'm Panlo, your personal files AI assistant. I can help you query any information about your files. How can I assist you today?</span>
+                        </div>
+                        <div class="demo-message demo-user">
+                            <span class="zh-content">我的財務報表中上個季度的總收入是多少？</span>
+                            <span class="en-content">What was the total revenue in my financial report for the last quarter?</span>
+                        </div>
+                        <div class="demo-message demo-ai">
+                            <span class="zh-content">根據您的財務報表，上個季度的總收入為 $1,245,678。這比前一季度增長了 12.3%。</span>
+                            <span class="en-content">According to your financial report, the total revenue for the last quarter was $1,245,678. This represents a 12.3% increase compared to the previous quarter.</span>
+                        </div>
+                        <div class="demo-message demo-user">
+                            <span class="zh-content">這個數字與去年同期相比如何？</span>
+                            <span class="en-content">How does this figure compare to the same period last year?</span>
+                        </div>
+                        <div class="demo-message demo-ai">
+                            <span class="zh-content">與去年同期相比，總收入增長了 18.7%。去年同期的總收入為 $1,049,435。主要增長來自於新產品線，貢獻了約 60% 的增長。</span>
+                            <span class="en-content">Compared to the same period last year, the total revenue has increased by 18.7%. The total revenue for the same period last year was $1,049,435. The main growth came from the new product line, which contributed about 60% of the increase.</span>
+                        </div>
+                        <div class="demo-message demo-ai" id="typing-message">
+                            <div class="demo-typing">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col justify-center reveal" style="transition-delay: 0.3s;">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+                        <span class="zh-content">智能理解您的需求</span>
+                        <span class="en-content">Intelligent Understanding of Your Needs</span>
+                    </h3>
+                    <ul class="space-y-4">
+                        <li class="flex items-start">
+                            <svg class="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <p class="text-gray-700 dark:text-gray-300">
+                                <span class="zh-content">自然語言處理技術讓您能用日常語言提問</span>
+                                <span class="en-content">Natural language processing technology allows you to ask questions in everyday language</span>
+                            </p>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <p class="text-gray-700 dark:text-gray-300">
+                                <span class="zh-content">上下文理解能力，記住對話歷史，提供連貫回答</span>
+                                <span class="en-content">Contextual understanding capability, remembers conversation history, provides coherent answers</span>
+                            </p>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <p class="text-gray-700 dark:text-gray-300">
+                                <span class="zh-content">智能分析數據，提取關鍵信息，生成見解</span>
+                                <span class="en-content">Intelligent data analysis, extracts key information, generates insights</span>
+                            </p>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <p class="text-gray-700 dark:text-gray-300">
+                                <span class="zh-content">跨文件搜索能力，整合多個來源的信息</span>
+                                <span class="en-content">Cross-file search capability, integrates information from multiple sources</span>
+                            </p>
+                        </li>
+                    </ul>
+                    <div class="mt-8">
+                        <a href="#download" class="download-button inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
+                            <span class="zh-content">立即體驗</span>
+                            <span class="en-content">Experience Now</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 下載區塊 / Download Section -->
+    <section id="download" class="py-16 bg-gray-50 dark:bg-gray-900">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <div class="ai-badge mx-auto">
+                    <span class="zh-content">立即獲取</span>
+                    <span class="en-content">Get It Now</span>
+                </div>
+                <h2 class="text-3xl font-extrabold text-gray-900 dark:text-white reveal">
                     <span class="zh-content">選擇您的平台</span>
                     <span class="en-content">Choose Your Platform</span>
                 </h2>
-                <p class="mt-4 text-lg text-gray-500">
+                <p class="mt-4 text-lg text-gray-500 dark:text-gray-300 reveal">
                     <span class="zh-content">Panlo 支援 macOS 和 Windows 平台，選擇適合您系統的版本下載。</span>
                     <span class="en-content">Panlo supports macOS and Windows platforms. Choose the version that suits your system.</span>
                 </p>
@@ -236,28 +724,33 @@
 
             <div class="mt-12 grid gap-8 md:grid-cols-2">
                 <!-- macOS Download -->
-                <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="download-card bg-white dark:bg-gray-800 overflow-hidden shadow-lg rounded-lg reveal">
                     <div class="px-4 py-5 sm:p-6">
-                        <div class="flex items-center justify-center h-24">
-                            <img src="assets/images/Panlo-macOS-icon.png" alt="macOS Icon" width="200" height="200">
+                        <div class="flex items-center justify-center h-32">
+                            <svg class="h-24 w-24 text-gray-400 dark:text-gray-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+                                <path fill="currentColor" d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
+                            </svg>
                         </div>
                         <div class="mt-4 text-center">
-                            <h3 class="text-lg font-medium text-gray-900">
+                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
                                 <span class="zh-content">macOS 版本</span>
                                 <span class="en-content">macOS Version</span>
                             </h3>
-                            <p class="mt-2 text-sm text-gray-500">
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-300">
                                 <span class="zh-content">適用於 macOS 10.15 (Catalina) 及以上版本</span>
                                 <span class="en-content">Compatible with macOS 10.15 (Catalina) and above</span>
                             </p>
                             <div class="mt-6">
-                                <a href="https://github.com/g1ahsia/ai-assistant/releases/download/macapp1.0.1/Panlo-1.0.1-universal-mac.zip" download class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <a href="https://github.com/g1ahsia/ai-assistant/releases/download/macapp1.0.1/Panlo-1.0.1-universal-mac.zip" download class="download-button inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105">
+                                    <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
                                     <span class="zh-content">下載 macOS 版本</span>
                                     <span class="en-content">Download for macOS</span>
                                 </a>
                             </div>
-                            <p class="mt-2 text-xs text-gray-500">
-                                <span class="zh-content">版本 1.0.1| 檔案大小：約 194MB</span>
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                <span class="zh-content">版本 1.0.1 | 檔案大小：約 194MB</span>
                                 <span class="en-content">Version 1.0.1 | File size: approx. 194MB</span>
                             </p>
                         </div>
@@ -265,27 +758,32 @@
                 </div>
 
                 <!-- Windows Download -->
-                <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="download-card bg-white dark:bg-gray-800 overflow-hidden shadow-lg rounded-lg reveal" style="transition-delay: 0.2s;">
                     <div class="px-4 py-5 sm:p-6">
-                        <div class="flex items-center justify-center h-24">
-                            <img src="assets/images/Panlo-Windows-icon.png" alt="Windows Icon" width="200" height="200">
+                        <div class="flex items-center justify-center h-32">
+                            <svg class="h-24 w-24 text-gray-400 dark:text-gray-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                                <path fill="currentColor" d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 324.6l183.6 25.3V268.4H0v149.9zm203.8 28L448 480V268.4H203.8v177.9zm0-380.6v180.1H448V32L203.8 65.7z"/>
+                            </svg>
                         </div>
                         <div class="mt-4 text-center">
-                            <h3 class="text-lg font-medium text-gray-900">
+                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
                                 <span class="zh-content">Windows 版本</span>
                                 <span class="en-content">Windows Version</span>
                             </h3>
-                            <p class="mt-2 text-sm text-gray-500">
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-300">
                                 <span class="zh-content">適用於 Windows 10 及以上版本</span>
                                 <span class="en-content">Compatible with Windows 10 and above</span>
                             </p>
                             <div class="mt-6">
-                                <a href="https://github.com/g1ahsia/ai-assistant/releases/download/macapp1.0.1/panlo-installer.zip" download class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <a href="https://github.com/g1ahsia/ai-assistant/releases/download/macapp1.0.1/panlo-installer.zip" download class="download-button inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105">
+                                    <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
                                     <span class="zh-content">下載 Windows 版本</span>
                                     <span class="en-content">Download for Windows</span>
                                 </a>
                             </div>
-                            <p class="mt-2 text-xs text-gray-500">
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                 <span class="zh-content">版本 1.0.1 | 檔案大小：約 88MB</span>
                                 <span class="en-content">Version 1.0.1 | File size: approx. 88MB</span>
                             </p>
@@ -296,25 +794,28 @@
 
             <!-- 安裝說明 / Installation Instructions -->
             <div class="mt-16">
-                <h3 class="text-2xl font-bold text-gray-900 text-center">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white text-center reveal">
                     <span class="zh-content">安裝說明</span>
                     <span class="en-content">Installation Instructions</span>
                 </h3>
                 <div class="mt-8 grid gap-8 md:grid-cols-2">
-                    <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-lg rounded-lg reveal">
                         <div class="px-4 py-5 sm:p-6">
-                            <h4 class="text-lg font-medium text-gray-900">
+                            <h4 class="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+                                <svg class="h-6 w-6 text-indigo-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+                                    <path fill="currentColor" d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
+                                </svg>
                                 <span class="zh-content">macOS 安裝步驟</span>
                                 <span class="en-content">macOS Installation Steps</span>
                             </h4>
-                            <ol class="mt-4 ml-4 space-y-2 text-gray-500 list-decimal">
+                            <ol class="mt-4 ml-4 space-y-2 text-gray-500 dark:text-gray-300 list-decimal">
                                 <li>
-                                    <span class="zh-content">下載 Panlo-1.0.1-universal-mac.zip 檔案</span>
-                                    <span class="en-content">Download the Panlo-1.0.1-universal-mac.zip file</span>
+                                    <span class="zh-content">下載 Panlo-macOS.dmg 檔案</span>
+                                    <span class="en-content">Download the Panlo-macOS.dmg file</span>
                                 </li>
                                 <li>
-                                    <span class="zh-content">開啟下載的 .zip 檔案</span>
-                                    <span class="en-content">Open the downloaded .zip file</span>
+                                    <span class="zh-content">開啟下載的 .dmg 檔案</span>
+                                    <span class="en-content">Open the downloaded .dmg file</span>
                                 </li>
                                 <li>
                                     <span class="zh-content">將 Panlo 應用程式拖曳到「應用程式」資料夾</span>
@@ -331,20 +832,23 @@
                             </ol>
                         </div>
                     </div>
-                    <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-lg rounded-lg reveal" style="transition-delay: 0.2s;">
                         <div class="px-4 py-5 sm:p-6">
-                            <h4 class="text-lg font-medium text-gray-900">
+                            <h4 class="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+                                <svg class="h-6 w-6 text-indigo-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                                    <path fill="currentColor" d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 324.6l183.6 25.3V268.4H0v149.9zm203.8 28L448 480V268.4H203.8v177.9zm0-380.6v180.1H448V32L203.8 65.7z"/>
+                                </svg>
                                 <span class="zh-content">Windows 安裝步驟</span>
                                 <span class="en-content">Windows Installation Steps</span>
                             </h4>
-                            <ol class="mt-4 ml-4 space-y-2 text-gray-500 list-decimal">
+                            <ol class="mt-4 ml-4 space-y-2 text-gray-500 dark:text-gray-300 list-decimal">
                                 <li>
-                                    <span class="zh-content">下載 panlo-installer.zip 檔案</span>
-                                    <span class="en-content">Download the panlo-installer.zip file</span>
+                                    <span class="zh-content">下載 Panlo-Windows.exe 檔案</span>
+                                    <span class="en-content">Download the Panlo-Windows.exe file</span>
                                 </li>
                                 <li>
-                                    <span class="zh-content">開啟下載的 .zip 檔案</span>
-                                    <span class="en-content">Open the downloaded .zip file</span>
+                                    <span class="zh-content">開啟下載的 .exe 檔案</span>
+                                    <span class="en-content">Open the downloaded .exe file</span>
                                 </li>
                                 <li>
                                     <span class="zh-content">依照安裝精靈的指示完成安裝</span>
@@ -367,19 +871,25 @@
     </section>
 
     <!-- 常見問題區塊 / FAQ Section -->
-    <section id="faq" class="py-16 bg-gray-50">
+    <section id="faq" class="py-16 bg-white dark:bg-gray-800">
         <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="max-w-2xl mx-auto divide-y-2 divide-gray-200">
-                <h2 class="text-3xl font-extrabold text-gray-900 sm:text-4xl text-center mb-8">
-                    <span class="zh-content">常見問題解答</span>
-                    <span class="en-content">Frequently Asked Questions</span>
-                </h2>
-                <dl class="mt-6 space-y-6 divide-y divide-gray-200">
+            <div class="max-w-2xl mx-auto divide-y-2 divide-gray-200 dark:divide-gray-700">
+                <div class="text-center">
+                    <div class="ai-badge mx-auto">
+                        <span class="zh-content">解答疑問</span>
+                        <span class="en-content">Get Answers</span>
+                    </div>
+                    <h2 class="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl text-center mb-8 reveal">
+                        <span class="zh-content">常見問題解答</span>
+                        <span class="en-content">Frequently Asked Questions</span>
+                    </h2>
+                </div>
+                <dl class="mt-6 space-y-6 divide-y divide-gray-200 dark:divide-gray-700 reveal">
                     <!-- FAQ 項目 / FAQ Items -->
-                    <div class="pt-6">
+                    <div class="pt-6 faq-item">
                         <dt class="text-lg">
-                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
-                                <span class="font-medium text-gray-900">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 dark:text-white focus:outline-none transition-all duration-300">
+                                <span class="font-medium">
                                     <span class="zh-content">Panlo 是什麼？</span>
                                     <span class="en-content">What is Panlo?</span>
                                 </span>
@@ -390,18 +900,18 @@
                                 </span>
                             </button>
                         </dt>
-                        <dd class="faq-answer mt-2 pr-12 hidden">
-                            <p class="text-base text-gray-500">
+                        <dd class="faq-answer mt-2 pr-12">
+                            <p class="text-base text-gray-500 dark:text-gray-300">
                                 <span class="zh-content">Panlo 是一款智能 AI 桌面應用程式，能夠讀取您的個人檔案，並回答關於這些檔案的任何問題。它使用先進的人工智能技術，讓您能夠以自然語言查詢檔案內容，無需手動搜尋或閱讀大量文件。</span>
                                 <span class="en-content">Panlo is an intelligent AI desktop application that can read your personal files and answer any questions about them. It uses advanced artificial intelligence technology to allow you to query file contents using natural language, eliminating the need to manually search or read through large documents.</span>
                             </p>
                         </dd>
                     </div>
 
-                    <div class="pt-6">
+                    <div class="pt-6 faq-item">
                         <dt class="text-lg">
-                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
-                                <span class="font-medium text-gray-900">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 dark:text-white focus:outline-none transition-all duration-300">
+                                <span class="font-medium">
                                     <span class="zh-content">Panlo 支援哪些作業系統？</span>
                                     <span class="en-content">Which operating systems does Panlo support?</span>
                                 </span>
@@ -412,18 +922,18 @@
                                 </span>
                             </button>
                         </dt>
-                        <dd class="faq-answer mt-2 pr-12 hidden">
-                            <p class="text-base text-gray-500">
-                                <span class="zh-content">Panlo 目前支援 macOS 和 Windows 作業系統。macOS 版本需要 macOS 10.15 (Catalina) 或更高版本；Windows 版本需要 Windows 10 或更高版本。</span>
-                                <span class="en-content">Panlo currently supports macOS and Windows operating systems. The macOS version requires macOS 10.15 (Catalina) or higher; the Windows version requires Windows 10 or higher.</span>
+                        <dd class="faq-answer mt-2 pr-12">
+                            <p class="text-base text-gray-500 dark:text-gray-300">
+                                <span class="zh-content">Panlo 目前支援 macOS 和 Windows 作業系統。macOS 版本需要 macOS 10.15 (Catalina) 或更高版本；Windows 版本需要 Windows 10 或更高版本。我們正在開發 Linux 版本，預計將在未來幾個月內推出。</span>
+                                <span class="en-content">Panlo currently supports macOS and Windows operating systems. The macOS version requires macOS 10.15 (Catalina) or higher; the Windows version requires Windows 10 or higher. We are developing a Linux version, which is expected to be released in the coming months.</span>
                             </p>
                         </dd>
                     </div>
 
-                    <div class="pt-6">
+                    <div class="pt-6 faq-item">
                         <dt class="text-lg">
-                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
-                                <span class="font-medium text-gray-900">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 dark:text-white focus:outline-none transition-all duration-300">
+                                <span class="font-medium">
                                     <span class="zh-content">我的檔案資料安全嗎？</span>
                                     <span class="en-content">Is my file data secure?</span>
                                 </span>
@@ -434,18 +944,18 @@
                                 </span>
                             </button>
                         </dt>
-                        <dd class="faq-answer mt-2 pr-12 hidden">
-                            <p class="text-base text-gray-500">
-                                <span class="zh-content">Panlo 採用了 安全的 JWT 令牌和 SSL 加密 來保護所有連線，確保您的資料在傳輸過程中是安全的。這層額外的保護措施確保了您的敏感資料保持私密，並且只有您能夠存取，即使在使用先進的 AI 查詢功能時也是如此。</span>
-                                <span class="en-content">Panlo employs secure JWT tokens and SSL encryption for all connections, ensuring that your data is transmitted securely. This extra layer of protection guarantees that your sensitive data remains private and accessible only to you, even while using advanced AI query capabilities.</span>
+                        <dd class="faq-answer mt-2 pr-12">
+                            <p class="text-base text-gray-500 dark:text-gray-300">
+                                <span class="zh-content">是的，您的資料安全是我們的首要考量。Panlo 將所有處理都在您的本地電腦上進行，您的檔案和查詢不會上傳到雲端。這確保了您的敏感資料始終保持私密和安全，同時仍能享受先進的 AI 查詢功能。我們使用端到端加密技術，確保資料在處理過程中的安全性。</span>
+                                <span class="en-content">Yes, your data security is our top priority. Panlo processes everything locally on your computer, and your files and queries are not uploaded to the cloud. This ensures that your sensitive data remains private and secure while still enjoying advanced AI query capabilities. We use end-to-end encryption technology to ensure data security during processing.</span>
                             </p>
                         </dd>
                     </div>
 
-                    <div class="pt-6">
+                    <div class="pt-6 faq-item">
                         <dt class="text-lg">
-                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 focus:outline-none">
-                                <span class="font-medium text-gray-900">
+                            <button class="faq-button text-left w-full flex justify-between items-start text-gray-900 dark:text-white focus:outline-none transition-all duration-300">
+                                <span class="font-medium">
                                     <span class="zh-content">如何使用 Panlo 查詢我的檔案？</span>
                                     <span class="en-content">How do I use Panlo to query my files?</span>
                                 </span>
@@ -456,8 +966,8 @@
                                 </span>
                             </button>
                         </dt>
-                        <dd class="faq-answer mt-2 pr-12 hidden">
-                            <p class="text-base text-gray-500">
+                        <dd class="faq-answer mt-2 pr-12">
+                            <p class="text-base text-gray-500 dark:text-gray-300">
                                 <span class="zh-content">使用 Panlo 非常簡單：<br>
                                 1. 開啟 Panlo 應用程式<br>
                                 2. 導入您想要查詢的檔案或資料夾<br>
@@ -477,18 +987,21 @@
             </div>
 
             <!-- 聯絡我們 / Contact Us -->
-            <div class="mt-16 bg-indigo-50 rounded-lg p-8">
+            <div class="mt-16 bg-indigo-50 dark:bg-indigo-900 rounded-lg p-8 reveal">
                 <div class="text-center">
-                    <h3 class="text-2xl font-bold text-gray-900">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white">
                         <span class="zh-content">還有其他問題？</span>
                         <span class="en-content">Have more questions?</span>
                     </h3>
-                    <p class="mt-4 text-lg text-gray-500">
+                    <p class="mt-4 text-lg text-gray-500 dark:text-gray-300">
                         <span class="zh-content">如果您沒有找到您的問題的答案，請隨時與我們聯繫。</span>
                         <span class="en-content">If you couldn't find the answer to your question, feel free to contact us.</span>
                     </p>
                     <div class="mt-6">
-                        <a href="mailto:g1ahsia@gmail.com" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <a href="mailto:g1ahsia@gmail.com" class="download-button inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105">
+                            <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
                             <span class="zh-content">聯絡我們</span>
                             <span class="en-content">Contact Us</span>
                         </a>
@@ -499,42 +1012,48 @@
     </section>
 
     <!-- 頁尾 / Footer -->
-    <footer class="bg-gray-800 text-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <footer class="bg-gray-900 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div>
-                    <h3 class="text-xl font-bold mb-4">Panlo</h3>
+                    <h3 class="text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">Panlo</h3>
                     <p class="text-gray-300">
                         <span class="zh-content">您的個人檔案AI助手，讓您輕鬆查詢和理解個人檔案中的資訊。</span>
                         <span class="en-content">Your personal files AI assistant, making it easy to query and understand information in your personal files.</span>
                     </p>
                 </div>
                 <div>
-                    <h3 class="text-lg font-semibold mb-4">
+                    <h3 class="text-lg font-semibold mb-4 text-indigo-300">
                         <span class="zh-content">快速連結</span>
                         <span class="en-content">Quick Links</span>
                     </h3>
                     <ul class="space-y-2">
                         <li>
-                            <a href="#home" class="text-gray-300 hover:text-white">
+                            <a href="#home" class="text-gray-300 hover:text-white transition-colors duration-300">
                                 <span class="zh-content">首頁</span>
                                 <span class="en-content">Home</span>
                             </a>
                         </li>
                         <li>
-                            <a href="#features" class="text-gray-300 hover:text-white">
+                            <a href="#features" class="text-gray-300 hover:text-white transition-colors duration-300">
                                 <span class="zh-content">功能介紹</span>
                                 <span class="en-content">Features</span>
                             </a>
                         </li>
                         <li>
-                            <a href="#download" class="text-gray-300 hover:text-white">
+                            <a href="#demo" class="text-gray-300 hover:text-white transition-colors duration-300">
+                                <span class="zh-content">互動展示</span>
+                                <span class="en-content">Demo</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#download" class="text-gray-300 hover:text-white transition-colors duration-300">
                                 <span class="zh-content">下載</span>
                                 <span class="en-content">Download</span>
                             </a>
                         </li>
                         <li>
-                            <a href="#faq" class="text-gray-300 hover:text-white">
+                            <a href="#faq" class="text-gray-300 hover:text-white transition-colors duration-300">
                                 <span class="zh-content">常見問題</span>
                                 <span class="en-content">FAQ</span>
                             </a>
@@ -542,7 +1061,7 @@
                     </ul>
                 </div>
                 <div>
-                    <h3 class="text-lg font-semibold mb-4">
+                    <h3 class="text-lg font-semibold mb-4 text-indigo-300">
                         <span class="zh-content">聯絡我們</span>
                         <span class="en-content">Contact Us</span>
                     </h3>
@@ -554,6 +1073,23 @@
                         <span class="zh-content">電子郵件：g1ahsia@gmail.com</span>
                         <span class="en-content">Email: g1ahsia@gmail.com</span>
                     </p>
+                    <div class="mt-4 flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors duration-300">
+                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clip-rule="evenodd"></path>
+                            </svg>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors duration-300">
+                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path>
+                            </svg>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors duration-300">
+                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"></path>
+                            </svg>
+                        </a>
+                    </div>
                 </div>
             </div>
             <div class="mt-8 pt-8 border-t border-gray-700 text-center">
@@ -575,19 +1111,159 @@
             const body = document.body;
             if (body.getAttribute('lang') === 'zh') {
                 body.setAttribute('lang', 'en');
-                localStorage.setItem('panlo-lang', 'en');
+                localStorage.setItem('pannamitta-lang', 'en');
             } else {
                 body.setAttribute('lang', 'zh');
-                localStorage.setItem('panlo-lang', 'zh');
+                localStorage.setItem('pannamitta-lang', 'zh');
             }
         });
 
-        // 載入時檢查語言設置 / Check language setting on load
+        // 載入時檢查語言和主題設置 / Check language and theme setting on load
         document.addEventListener('DOMContentLoaded', function() {
-            const savedLang = localStorage.getItem('panlo-lang');
+            // 語言設置 / Language setting
+            const savedLang = localStorage.getItem('pannamitta-lang');
             if (savedLang) {
                 document.body.setAttribute('lang', savedLang);
             }
+            
+            // 主題設置 / Theme setting
+            const savedTheme = localStorage.getItem('pannamitta-theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark');
+                document.querySelector('.light-icon').classList.add('hidden');
+                document.querySelector('.dark-icon').classList.remove('hidden');
+            }
+            
+            // 初始化打字效果 / Initialize typing effect
+            const options = {
+                strings: ['您的個人檔案 AI 助手'],
+                typeSpeed: 50,
+                backSpeed: 30,
+                backDelay: 3000,
+                loop: true,
+                showCursor: true,
+                cursorChar: '|'
+            };
+            
+            const optionsEn = {
+                strings: ['Your Personal Files AI Assistant'],
+                typeSpeed: 50,
+                backSpeed: 30,
+                backDelay: 3000,
+                loop: true,
+                showCursor: true,
+                cursorChar: '|'
+            };
+            
+            new Typed('#typing-zh', options);
+            new Typed('#typing-en', optionsEn);
+            
+            // 初始化粒子效果 / Initialize particles effect
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": {
+                        "value": 80,
+                        "density": {
+                            "enable": true,
+                            "value_area": 800
+                        }
+                    },
+                    "color": {
+                        "value": "#ffffff"
+                    },
+                    "shape": {
+                        "type": "circle",
+                        "stroke": {
+                            "width": 0,
+                            "color": "#000000"
+                        },
+                        "polygon": {
+                            "nb_sides": 5
+                        }
+                    },
+                    "opacity": {
+                        "value": 0.5,
+                        "random": false,
+                        "anim": {
+                            "enable": false,
+                            "speed": 1,
+                            "opacity_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "size": {
+                        "value": 3,
+                        "random": true,
+                        "anim": {
+                            "enable": false,
+                            "speed": 40,
+                            "size_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "line_linked": {
+                        "enable": true,
+                        "distance": 150,
+                        "color": "#ffffff",
+                        "opacity": 0.4,
+                        "width": 1
+                    },
+                    "move": {
+                        "enable": true,
+                        "speed": 2,
+                        "direction": "none",
+                        "random": false,
+                        "straight": false,
+                        "out_mode": "out",
+                        "bounce": false,
+                        "attract": {
+                            "enable": false,
+                            "rotateX": 600,
+                            "rotateY": 1200
+                        }
+                    }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": {
+                        "onhover": {
+                            "enable": true,
+                            "mode": "grab"
+                        },
+                        "onclick": {
+                            "enable": true,
+                            "mode": "push"
+                        },
+                        "resize": true
+                    },
+                    "modes": {
+                        "grab": {
+                            "distance": 140,
+                            "line_linked": {
+                                "opacity": 1
+                            }
+                        },
+                        "bubble": {
+                            "distance": 400,
+                            "size": 40,
+                            "duration": 2,
+                            "opacity": 8,
+                            "speed": 3
+                        },
+                        "repulse": {
+                            "distance": 200,
+                            "duration": 0.4
+                        },
+                        "push": {
+                            "particles_nb": 4
+                        },
+                        "remove": {
+                            "particles_nb": 2
+                        }
+                    }
+                },
+                "retina_detect": true
+            });
         });
 
         // 行動裝置選單切換 / Mobile menu toggle
@@ -602,13 +1278,8 @@
                 const icon = this.querySelector('.faq-icon');
                 
                 // 切換顯示/隱藏 / Toggle display/hide
-                if (answer.classList.contains('hidden')) {
-                    answer.classList.remove('hidden');
-                    icon.classList.add('-rotate-180');
-                } else {
-                    answer.classList.add('hidden');
-                    icon.classList.remove('-rotate-180');
-                }
+                answer.classList.toggle('active');
+                icon.classList.toggle('-rotate-180');
             });
         });
 
@@ -628,15 +1299,93 @@
                     
                     // 如果是在行動裝置選單中點擊，則關閉選單 / If clicked in mobile menu, close the menu
                     document.querySelector('.mobile-menu').classList.add('hidden');
+                    
+                    // 更新活動導航連結 / Update active navigation link
+                    document.querySelectorAll('.nav-link').forEach(link => {
+                        link.classList.remove('active');
+                    });
+                    document.querySelector(`a[href="${targetId}"]`).classList.add('active');
+                }
+            });
+        });
+        
+        // 滾動顯示動畫 / Scroll reveal animation
+        function revealOnScroll() {
+            const reveals = document.querySelectorAll('.reveal');
+            
+            for (let i = 0; i < reveals.length; i++) {
+                const windowHeight = window.innerHeight;
+                const elementTop = reveals[i].getBoundingClientRect().top;
+                const elementVisible = 150;
+                
+                if (elementTop < windowHeight - elementVisible) {
+                    reveals[i].classList.add('active');
+                }
+            }
+        }
+        
+        window.addEventListener('scroll', revealOnScroll);
+        revealOnScroll(); // 初始檢查 / Initial check
+        
+        // 模擬打字效果 / Simulate typing effect
+        let typingTimeout;
+        function simulateTyping() {
+            const typingMessage = document.getElementById('typing-message');
+            typingMessage.style.display = 'block';
+            
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                typingMessage.style.display = 'none';
+                
+                // 添加新消息 / Add new message
+                const demoContent = document.querySelector('.demo-content');
+                const newMessage = document.createElement('div');
+                newMessage.className = 'demo-message demo-ai';
+                
+                if (document.body.getAttribute('lang') === 'zh') {
+                    newMessage.innerHTML = '我還可以為您提供這些數據的視覺化圖表，幫助您更好地理解業績趨勢。您需要我生成圖表嗎？';
+                } else {
+                    newMessage.innerHTML = 'I can also provide you with visualization charts of this data to help you better understand performance trends. Would you like me to generate a chart?';
+                }
+                
+                demoContent.appendChild(newMessage);
+                demoContent.scrollTop = demoContent.scrollHeight;
+                
+                // 5秒後重新開始 / Restart after 5 seconds
+                // setTimeout(() => {
+                //     simulateTyping();
+                // }, 10000);
+            }, 3000);
+        }
+        
+        // 啟動模擬打字 / Start simulated typing
+        setTimeout(simulateTyping, 2000);
+        
+        // 導航欄滾動效果 / Navigation bar scroll effect
+        window.addEventListener('scroll', function() {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 10) {
+                nav.classList.add('bg-opacity-90', 'backdrop-filter', 'backdrop-blur-lg');
+            } else {
+                nav.classList.remove('bg-opacity-90', 'backdrop-filter', 'backdrop-blur-lg');
+            }
+            
+            // 更新活動導航連結 / Update active navigation link
+            const scrollPosition = window.scrollY;
+            
+            document.querySelectorAll('section').forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                
+                if (scrollPosition >= sectionTop - 100 && scrollPosition < sectionTop + sectionHeight - 100) {
+                    const id = section.getAttribute('id');
+                    document.querySelectorAll('.nav-link').forEach(link => {
+                        link.classList.remove('active');
+                    });
+                    document.querySelector(`a[href="#${id}"]`).classList.add('active');
                 }
             });
         });
     </script>
 </body>
 </html>
-
-                                <!-- Panlo 將所有處理都在您的本地電腦上進行，您的檔案和查詢不會上傳到雲端。這確保了您的敏感資料始終保持私密和安全，同時仍能享受先進的 AI 查詢功能。-->
-                                <!-- Yes, your data security is our top priority. Panlo processes everything locally on your computer, and your files and queries are not uploaded to the cloud. This ensures that your sensitive data remains private and secure while still enjoying advanced AI query capabilities.-->
-                                <!-- 所有處理都在本地進行，您的檔案和查詢不會上傳到雲端，確保資料安全。 -->
-                                <!-- All processing is done locally, your files and queries are not uploaded to the cloud, ensuring data security. -->
-
