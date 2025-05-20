@@ -1120,6 +1120,19 @@
 
         // 載入時檢查語言和主題設置 / Check language and theme setting on load
         document.addEventListener('DOMContentLoaded', function() {
+            // Get the browser's language
+            const browserLanguage = navigator.language || navigator.userLanguage;
+
+            // Check if the browser language is Chinese (Simplified or Traditional)
+            if (browserLanguage.startsWith('zh')) {
+                // If it's Chinese, set the language to Chinese (zh)
+                document.body.setAttribute('lang', 'zh');
+                localStorage.setItem('pannamitta-lang', 'zh'); // Save language preference to localStorage
+            } else {
+                // For other languages, set the language to English (en)
+                document.body.setAttribute('lang', 'en');
+                localStorage.setItem('pannamitta-lang', 'en'); // Save language preference to localStorage
+            }
             // 語言設置 / Language setting
             const savedLang = localStorage.getItem('pannamitta-lang');
             if (savedLang) {
