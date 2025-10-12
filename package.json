@@ -1,0 +1,38 @@
+{
+  "name": "pinecone-client",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node express.js",
+    "dev": "NODE_ENV=development node express.js",
+    "prod": "NODE_ENV=production node express.js",
+    "switch:dev": "node switch-env.js development",
+    "switch:prod": "node switch-env.js production"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "@pinecone-database/pinecone": "^6.0.1",
+    "axios": "^1.8.4",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.5.0",
+    "express.js": "^1.0.0",
+    "google-auth-library": "^9.15.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.15.0",
+    "multer": "^2.0.0",
+    "officeparser": "^5.1.1",
+    "openai": "^4.100.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "electron": "^35.0.3"
+  }
+}

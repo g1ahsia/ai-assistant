@@ -1,6 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config(); // Load environment variables FIRST before any other imports
-
 import fs from 'fs';
 import http from 'http';
 import https from 'https';
@@ -8,6 +5,7 @@ import express from 'express';
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import cors from 'cors';
+import dotenv from "dotenv";
 import { generateResponse, interpretQuery, queryPinecone, generateSummary} from './chatbotClient.js';
 import multer from 'multer';
 import bodyParser from 'body-parser';
@@ -19,7 +17,6 @@ import { createOrUpdateUser, updateUserPreferences, getUserPreferences } from '.
 import { OAuth2Client } from 'google-auth-library';
 import User from './user.js';
 import decrypt from './decryption.js';
-import config from './config.js';
 
 const CLIENT_ID = '58049448026-qb3gkpaigug5iobp7vnft7s4jl4n2a52.apps.googleusercontent.com'; // Your Google client ID here
 const SECRET_KEY = process.env.JWT_SECRET || "E23DKSLT93LSL312K5";
@@ -27,15 +24,18 @@ const SECRET_KEY = process.env.JWT_SECRET || "E23DKSLT93LSL312K5";
 const client = new OAuth2Client(CLIENT_ID);
 
 const pc = new Pinecone({
-  apiKey: config.pinecone.apiKey
+  apiKey: 'pcsk_6cUWc6_DW2EbgLmitznWXsTXbdYsLU4bs4gVLdywWVFXUBJ8GWNDVriFR94Pa98XTkDrX'
 });
 
+dotenv.config();
 const app = express();
-const PORT = config.port;
-const indexName = config.pinecone.indexName;
-const model = config.model;
+const PORT = 3000;
+// *** production
+// const indexName = 'allen-dev';
+const indexName = 'panlo-global';
+const model = 'multilingual-e5-large';
 
-const allowedOrigins = config.cors.allowedOrigins;
+const allowedOrigins = ['https://g1ahsia.github.io', 'https://www.pannamitta.com', 'https://api.pannamitta.com'];
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -49,11 +49,11 @@ const corsOptions = {
   },
 };
 
-// SSL options for production
-const sslOptions = config.ssl.enabled ? {
-  key: fs.readFileSync(config.ssl.keyPath),
-  cert: fs.readFileSync(config.ssl.certPath)
-} : null;
+//*** Production ***
+const options = {
+  key: fs.readFileSync('/etc/ssl/privkey1.pem'), // Adjust path to your private key
+  cert: fs.readFileSync('/etc/ssl/fullchain1.pem'), // Adjust path to your certificate
+};
 
 app.use(cors(corsOptions));  // Enable CORS with specific options
 app.use(express.json({ limit: '50mb' }));
@@ -410,9 +410,6 @@ app.post('/chat', verifyJwtToken, async (req, res) => {
 });
 
 app.post('/generate-summary', verifyJwtToken, async (req, res) => {
-
-  console.log('Generating summary on request');
-
   try {
     const { googleId, text, filename, language } = req.body;
     
@@ -693,22 +690,14 @@ async function updateVectorMetadata(namespace, vectorUpdates) {
   console.log('✅ Batch metadata update completed');
 }
 
-// Start server based on environment
-if (config.isProduction()) {
-  // Production: HTTPS server
-  https.createServer(sslOptions, app).listen(PORT, () => {
-    console.log(`🚀 Production server running securely on https://api.pannamitta.com:${PORT}`);
-    console.log(`📊 Environment: ${config.env}`);
-    console.log(`🗄️  Pinecone Index: ${config.pinecone.indexName}`);
-  });
-} else {
-  // Development: HTTP server
-  http.createServer(app).listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Development server running on http://localhost:${PORT}`);
-    console.log(`📊 Environment: ${config.env}`);
-    console.log(`🗄️  Pinecone Index: ${config.pinecone.indexName}`);
-  });
-}
+// *** Production Start the HTTPS server
+https.createServer(options, app).listen(PORT, () => {
+  console.log(`Server running securely on https://api.pannamitta.com:${PORT}/get`);
+});
+
+// http.createServer(app).listen(PORT, '0.0.0.0', () => {
+//   console.log(`Server running on http://192.168.0.104:${PORT}`);
+// });
 
 app.get('/get', async (req, res) => {
   try {

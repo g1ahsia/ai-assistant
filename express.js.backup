@@ -1,6 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config(); // Load environment variables FIRST before any other imports
-
 import fs from 'fs';
 import http from 'http';
 import https from 'https';
@@ -8,6 +5,7 @@ import express from 'express';
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import cors from 'cors';
+import dotenv from "dotenv";
 import { generateResponse, interpretQuery, queryPinecone, generateSummary} from './chatbotClient.js';
 import multer from 'multer';
 import bodyParser from 'body-parser';
@@ -15,27 +13,30 @@ import path from 'path';
 import { Pinecone } from '@pinecone-database/pinecone';
 import parseOfficeFile from "./officeParser.js";
 import { connectDB } from './db.js';  // Corrected import
-import { createOrUpdateUser, updateUserPreferences, getUserPreferences } from './user.js';  // Corrected import
+import { createOrUpdateUser } from './user.js';  // Corrected import
 import { OAuth2Client } from 'google-auth-library';
 import User from './user.js';
 import decrypt from './decryption.js';
-import config from './config.js';
 
 const CLIENT_ID = '58049448026-qb3gkpaigug5iobp7vnft7s4jl4n2a52.apps.googleusercontent.com'; // Your Google client ID here
+const users = []; // Store users in-memory (use DB in production)
 const SECRET_KEY = process.env.JWT_SECRET || "E23DKSLT93LSL312K5";
 
 const client = new OAuth2Client(CLIENT_ID);
 
 const pc = new Pinecone({
-  apiKey: config.pinecone.apiKey
+  apiKey: 'pcsk_6cUWc6_DW2EbgLmitznWXsTXbdYsLU4bs4gVLdywWVFXUBJ8GWNDVriFR94Pa98XTkDrX'
 });
 
+dotenv.config();
 const app = express();
-const PORT = config.port;
-const indexName = config.pinecone.indexName;
-const model = config.model;
+const PORT = 3000;
+// *** production
+const indexName = 'allen-dev';
+// const indexName = 'panlo-global';
+const model = 'multilingual-e5-large';
 
-const allowedOrigins = config.cors.allowedOrigins;
+const allowedOrigins = ['https://g1ahsia.github.io', 'https://www.pannamitta.com', 'https://api.pannamitta.com'];
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -49,15 +50,15 @@ const corsOptions = {
   },
 };
 
-// SSL options for production
-const sslOptions = config.ssl.enabled ? {
-  key: fs.readFileSync(config.ssl.keyPath),
-  cert: fs.readFileSync(config.ssl.certPath)
-} : null;
+//*** Production ***
+const options = {
+  // key: fs.readFileSync('/etc/ssl/privkey1.pem'), // Adjust path to your private key
+  // cert: fs.readFileSync('/etc/ssl/fullchain1.pem'), // Adjust path to your certificate
+};
 
 app.use(cors(corsOptions));  // Enable CORS with specific options
-app.use(express.json({ limit: '50mb' }));
-app.use(bodyParser.json({ limit: '50mb' }));
+app.use(express.json());
+app.use(bodyParser.json());
 connectDB();
 
 
@@ -217,10 +218,10 @@ app.post('/embed-text', verifyJwtToken, async (req, res) => {
     console.log('Received metadata:', decryptedMetadata);
 
     // Ensure metadata has necessary fields
-    const { filename, filepath, fileType, fileSize, createdAt, updatedAt, folderName } = decryptedMetadata;
+    const { filename, fileType, fileSize, createdAt, updatedAt, folderName } = decryptedMetadata;
 
-    if (!filename || !filepath || !fileType || !fileSize || !createdAt || !updatedAt || !folderName) {
-      return res.status(400).json({ error: "Metadata fields (filename, filepath, fileType, fileSize, createdAt, updatedAt, folderName) are required!" });
+    if (!filename || !fileType || !fileSize || !createdAt || !updatedAt || !folderName) {
+      return res.status(400).json({ error: "Metadata fields (filename, fileType, fileSize, createdAt, updatedAt) are required!" });
     }
 
     // Convert createdAt and updatedAt to timestamps (milliseconds since the Unix epoch)
@@ -364,12 +365,8 @@ app.post('/chat', verifyJwtToken, async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    const isExpired = user.isExpired();
-    console.log('user.isExpired(): ', isExpired);
-    console.log('About to check expiration condition...');
 
-    if (isExpired) {
-      console.log('User is expired, returning expiration message');
+    if (user.isExpired()) {
       return res.json({
         response: {
           aiResponse: "Your free trial has expired after 30 days. Please contact us for a quote or further discussion at g1ahsia@gmail.com.",
@@ -377,8 +374,6 @@ app.post('/chat', verifyJwtToken, async (req, res) => {
         }
       });
     }
-    
-    console.log('User is not expired, proceeding with normal response');
     // const filters = await interpretQuery(query);
 
 
@@ -410,9 +405,6 @@ app.post('/chat', verifyJwtToken, async (req, res) => {
 });
 
 app.post('/generate-summary', verifyJwtToken, async (req, res) => {
-
-  console.log('Generating summary on request');
-
   try {
     const { googleId, text, filename, language } = req.body;
     
@@ -492,87 +484,6 @@ app.post('/findFiles', verifyJwtToken, async (req, res) => {
   }
 });
 
-app.post('/getTranscription', verifyJwtToken, async (req, res) => {
-  try {
-    const { googleId, uuid, chunks } = req.body;
-    console.log('Getting transcription for UUID:', uuid, 'googleId:', googleId, 'chunks:', chunks);
-
-    const user = await User.findOne({ googleId });
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (!uuid) {
-      return res.status(400).json({ error: 'UUID is required' });
-    }
-
-    const index = pc.index(indexName);
-    const chunkCount = chunks || 1;
-    
-    let transcriptionParts = [];
-    const vectorIds = [];
-    
-    // Always fetch chunks with index format (uuid-0, uuid-1, uuid-2, etc.)
-    console.log(`Fetching ${chunkCount} chunks for UUID: ${uuid}`);
-    
-    const chunkPromises = [];
-    for (let i = 0; i < chunkCount; i++) {
-      const chunkId = `${uuid}-${i}`;
-      chunkPromises.push(
-        index.namespace(googleId).fetch([chunkId]).then(response => {
-          console.log(`Fetch response for ${chunkId}:`, JSON.stringify(response, null, 2));
-          return {
-            index: i,
-            id: chunkId,
-            data: response.records && response.records[chunkId] ? response.records[chunkId] : null,
-            rawResponse: response
-          };
-        })
-      );
-    }
-    
-    // Fetch all chunks in parallel
-    const chunkResults = await Promise.all(chunkPromises);
-
-    console.log('chunkResults: ', chunkResults);
-    
-    // Process results in order
-    for (const result of chunkResults) {
-      if (result.data) {
-        const text = result.data.metadata?.text || '';
-        transcriptionParts.push(text);
-        vectorIds.push(result.id);
-        console.log(`Chunk ${result.index}: ${text.substring(0, 100)}...`);
-      } else {
-        console.warn(`Chunk ${result.id} not found`);
-      }
-    }
-
-    if (transcriptionParts.length === 0) {
-      return res.status(404).json({ error: 'No transcription found for this file' });
-    }
-
-    // Concatenate all text parts
-    const fullTranscription = transcriptionParts.join(' ').trim();
-
-    if (!fullTranscription) {
-      return res.status(404).json({ error: 'No transcription text found in vector metadata' });
-    }
-
-    console.log(`Returning transcription with ${transcriptionParts.length} parts, total length: ${fullTranscription.length} characters`);
-
-    res.json({ 
-      transcription: fullTranscription,
-      chunks: transcriptionParts.length,
-      vectorIds: vectorIds
-    });
-
-  } catch (error) {
-    console.error('Error fetching transcription:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 app.post('/update-vector-metadata', async (req, res) => {
   try {
     const { googleId, updates } = req.body;
@@ -606,8 +517,8 @@ async function upsertVector(namespace, data) {
       ...d.metadata,
       folderName: d.metadata.folderName ? d.metadata.folderName.toLowerCase() : null,  // Convert folderName to lowercase
       filename: d.metadata.filename ? d.metadata.filename.toLowerCase() : null,  // Convert filename to lowercase
-      filepath: d.metadata.filepath || null, // Preserve filepath as-is (case sensitive)
-      fileType: d.metadata.fileType ? d.metadata.fileType.toLowerCase() : null  // Convert fileType to lowercase
+      fileType: d.metadata.fileType ? d.metadata.fileType.toLowerCase() : null  // Convert filename to lowercase
+
     };
 
     return {
@@ -676,7 +587,6 @@ async function updateVectorMetadata(namespace, vectorUpdates) {
       ...update.metadata,
       folderName: update.metadata.folderName ? update.metadata.folderName.toLowerCase() : null,
       filename: update.metadata.filename ? update.metadata.filename.toLowerCase() : null,
-      filepath: update.metadata.filepath || null, // Preserve filepath as-is (case sensitive)
       fileType: update.metadata.fileType ? update.metadata.fileType.toLowerCase() : null,
       smartFolderNames: update.metadata.smartFolderNames || []
     };
@@ -693,22 +603,14 @@ async function updateVectorMetadata(namespace, vectorUpdates) {
   console.log('✅ Batch metadata update completed');
 }
 
-// Start server based on environment
-if (config.isProduction()) {
-  // Production: HTTPS server
-  https.createServer(sslOptions, app).listen(PORT, () => {
-    console.log(`🚀 Production server running securely on https://api.pannamitta.com:${PORT}`);
-    console.log(`📊 Environment: ${config.env}`);
-    console.log(`🗄️  Pinecone Index: ${config.pinecone.indexName}`);
-  });
-} else {
-  // Development: HTTP server
-  http.createServer(app).listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Development server running on http://localhost:${PORT}`);
-    console.log(`📊 Environment: ${config.env}`);
-    console.log(`🗄️  Pinecone Index: ${config.pinecone.indexName}`);
-  });
-}
+// *** Production Start the HTTPS server
+// https.createServer(options, app).listen(PORT, () => {
+//   console.log(`Server running securely on https://api.pannamitta.com:${PORT}/get`);
+// });
+
+http.createServer(app).listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on http://192.168.0.104:${PORT}`);
+});
 
 app.get('/get', async (req, res) => {
   try {
@@ -751,185 +653,10 @@ app.post('/register', verifyGoogleToken, async (req, res) => {
   }
 });
 
-// Test endpoint for user registration (bypasses Google token verification)
-app.post('/test-register', async (req, res) => {
-  const userData = req.body;
-
-  try {
-    // Check if googleId and email are present in userData
-    if (!userData.googleId || !userData.email) {
-      return res.status(400).json({ error: "Missing googleId or email in user data" });
-    }
-
-    // Create or update the user
-    const savedUser = await createOrUpdateUser(userData);
-
-    // Generate JWT token
-    const jwt_token = jwt.sign(
-      { googleId: userData.googleId, email: userData.email },
-      SECRET_KEY
-    );
-
-    // Send success response
-    res.status(200).json({ message: "Test user registered successfully", jwt_token });
-  } catch (error) {
-    // Log error and send failure response
-    console.error('Error during test registration:', error);
-    res.status(500).json({ error: "Error during test registration", details: error.message });
-  }
-});
-
 
 
 
 // app.listen(PORT, () => {
 //   console.log(`Server running on http://localhost:${PORT}`);
 // });
-
-
-
-// API route to save user preferences
-app.post("/api/preferences", async (req, res) => {
-  try {
-    const { googleId, preferences } = req.body;
-    
-    if (!googleId || !preferences) {
-      return res.status(400).json({ error: "Missing googleId or preferences" });
-    }
-
-    // Find user and update preferences
-    const user = await User.findOne({ googleId });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Update user preferences
-    user.preferences = preferences;
-    await user.save();
-
-    console.log("Preferences saved for user:", googleId);
-    res.status(200).json({ message: "Preferences saved successfully" });
-  } catch (error) {
-    console.error("Error saving preferences:", error);
-    res.status(500).json({ error: "Error saving preferences", details: error.message });
-  }
-});
-
-// API route to get user preferences
-app.get("/api/preferences/:googleId", async (req, res) => {
-  try {
-    const { googleId } = req.params;
-    
-    if (!googleId) {
-      return res.status(400).json({ error: "Missing googleId" });
-    }
-
-    // Find user and get preferences
-    const user = await User.findOne({ googleId });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    console.log("Preferences retrieved for user:", googleId);
-    res.status(200).json({ preferences: user.preferences });
-  } catch (error) {
-    console.error("Error retrieving preferences:", error);
-    res.status(500).json({ error: "Error retrieving preferences", details: error.message });
-  }
-});
-
-// API route to query vectors from Pinecone
-app.post('/query-vectors', verifyJwtToken, async (req, res) => {
-  try {
-    const { googleId, query, topK = 100, filter = {} } = req.body;
-    
-    if (!googleId) {
-      return res.status(400).json({ error: "Missing googleId" });
-    }
-
-    // Ensure topK is an integer
-    const topKInt = parseInt(topK, 10);
-    if (isNaN(topKInt) || topKInt <= 0) {
-      return res.status(400).json({ error: "topK must be a positive integer" });
-    }
-
-    console.log(`🔍 Querying vectors for user: ${googleId}`);
-    console.log(`Query: "${query}", topK: ${topKInt}, filter:`, filter);
-
-    const index = pc.index(indexName);
-    
-    if (query && query.trim() !== '') {
-      // Query with text (embed the query first)
-      const embeddings = await pc.inference.embed(
-        model,
-        [query],
-        { inputType: 'passage', truncate: 'END' }
-      );
-      
-      const queryResponse = await index.namespace(googleId).query({
-        vector: embeddings.data[0].values,
-        topK: topKInt,
-        filter: filter,
-        includeMetadata: true
-      });
-      
-      console.log(`✅ Found ${queryResponse.matches.length} matching vectors`);
-      res.json({ matches: queryResponse.matches });
-      
-    } else {
-      // Query all vectors (no text query, just get all vectors)
-      // First, get index stats to see how many vectors we have
-      const stats = await index.describeIndexStats();
-      console.log('🔍 Full stats from Pinecone:', JSON.stringify(stats, null, 2));
-      
-      const namespaceStats = stats.namespaces[googleId];
-      console.log('🔍 Namespace stats for', googleId, ':', namespaceStats);
-      
-      if (!namespaceStats) {
-        console.log(`⚠️ No vectors found in namespace: ${googleId}`);
-        res.json({ matches: [] });
-        return;
-      }
-      
-      const totalVectors = namespaceStats.recordCount || namespaceStats.vectorCount || 0;
-      console.log(`📊 Total vectors in namespace ${googleId}: ${totalVectors}`);
-      
-      // Use the smaller of topKInt and totalVectors, but at least 1
-      const queryTopK = Math.max(1, Math.min(topKInt, totalVectors));
-      console.log(`🔢 Using queryTopK: ${queryTopK} (topKInt: ${topKInt}, totalVectors: ${totalVectors})`);
-      
-      // Create a dummy vector of zeros for broad query
-      const dummyVector = new Array(stats.dimension).fill(0);
-      
-      const queryResponse = await index.namespace(googleId).query({
-        vector: dummyVector,
-        topK: queryTopK,
-        filter: filter,
-        includeMetadata: true
-      });
-      
-      console.log(`✅ Retrieved ${queryResponse.matches.length} vectors out of ${totalVectors} total`);
-      res.json({ matches: queryResponse.matches });
-    }
-    
-  } catch (error) {
-    console.error('❌ Error querying vectors:', error);
-    res.status(500).json({ error: 'Failed to query vectors', details: error.message });
-  }
-});
-
-// Test endpoint to check index stats
-app.get('/test-index-stats', async (req, res) => {
-  try {
-    console.log('🔍 Testing index stats...');
-    const index = pc.index(indexName);
-    const stats = await index.describeIndexStats();
-    console.log('📊 Full stats:', JSON.stringify(stats, null, 2));
-    res.json({ stats });
-  } catch (error) {
-    console.error('❌ Error getting index stats:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 
