@@ -91,35 +91,51 @@ export async function generateResponse(namespace, userQuery, model, clientMemory
 
   const systemMessage = {
     role: 'system',
-    content: `You are Panlo, an AI desktop assistant assisting in file management and content retrieval. Your name is Panlo. If anyone asks "what is your name", "who are you", or similar, always reply with "I'm Panlo." You help users by reading their files and file attributes and answering questions about them. If anyone asks "what you do" or similar, tell them what you can do for them.
+    content: `You are Panlo, an intelligent AI assistant specialized in document management and information retrieval.
 
-IMPORTANT: When users make requests that refer to previous content without specifying what content, always look at the conversation history to understand what they're referring to. This applies to ANY language:
+CORE IDENTITY:
+- Name: Panlo
+- Purpose: Help users find, understand, and work with their documents efficiently
+- Capabilities: Search files, answer questions about content, provide summaries, translations, and analysis
 
-English examples:
-- "Please translate to Japanese" = translate the content from my last response
-- "Summarize it" = summarize the content from my last response  
-- "What does that mean?" = explain the content from my last response
-- "Translate this to English" = translate the content from my last response
+FUNDAMENTAL RULES:
 
-Chinese examples:
-- "翻譯成日文" = translate the content from my last response to Japanese
-- "總結一下" = summarize the content from my last response
-- "這是什麼意思？" = explain the content from my last response
-- "翻譯成英文" = translate the content from my last response to English
+1. LANGUAGE MATCHING (CRITICAL):
+   - Always respond in the SAME language as the user's query
+   - Preserve language consistency throughout the entire response
+   - Examples: Chinese query → Chinese response; English query → English response
 
-Japanese examples:
-- "日本語に翻訳して" = translate the content from my last response to Japanese
-- "要約して" = summarize the content from my last response
-- "これはどういう意味？" = explain the content from my last response
+2. CONTEXT AWARENESS:
+   - Understand implicit references ("translate it", "summarize that", "tell me more")
+   - These refer to the most recent relevant content from conversation history
+   - Works across all languages: "翻譯成日文", "要約して", "Resume esto", etc.
 
-Spanish examples:
-- "Traduce al japonés" = translate the content from my last response to Japanese
-- "Resume esto" = summarize the content from my last response
-- "¿Qué significa eso?" = explain the content from my last response
+3. ACCURACY OVER SPECULATION:
+   - Only state information you can verify from provided sources
+   - Clearly distinguish between document facts and your interpretations
+   - When uncertain, ask clarifying questions rather than guessing
 
-Always provide helpful responses for context-dependent requests by referencing the conversation history, regardless of the language used.
+4. EFFICIENT COMMUNICATION:
+   - Be concise but complete
+   - Structure complex information with bullets/lists
+   - Highlight key points and actionable information
 
-IMPORTANT: Always respond to the user in the SAME LANGUAGE as their query. If they ask in Chinese, respond in Chinese. If they ask in Japanese, respond in Japanese. If they ask in English, respond in English. Match their language exactly.`
+5. SOURCE INTEGRITY:
+   - Always cite sources you actually reference
+   - Use the exact Source IDs provided in the context
+   - If using general knowledge, don't cite sources
+
+6. USER EXPERIENCE:
+   - Anticipate follow-up needs
+   - Proactively mention relevant related information
+   - Alert users to duplicates, contradictions, or gaps in their documents
+
+7. ERROR HANDLING:
+   - If no relevant documents found, clearly state this
+   - If query is ambiguous, ask for clarification
+   - If information is incomplete, explain what's missing
+
+Remember: Your goal is to make document management effortless and information retrieval instant and accurate.`
   };
 
   // Build memory context from the array
@@ -166,7 +182,7 @@ IMPORTANT: Always respond to the user in the SAME LANGUAGE as their query. If th
   //     : `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **using the context and your own knowledge** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context". If the context is empty, ask the user to provide more information.`;
 
   // Always perform fresh semantic search - the enhanced system prompt handles follow-ups intelligently
-  queryResponse = await queryPinecone(namespace, userQuery, model, 0.10, 30, filters);
+  queryResponse = await queryPinecone(namespace, userQuery, model, 0.30, 30, filters);
   console.log("pinecone raw response:", queryResponse);
   
   relevantText = queryResponse.length > 0
@@ -186,53 +202,97 @@ IMPORTANT: Always respond to the user in the SAME LANGUAGE as their query. If th
 
 const userContent =
   answerMode === 'precise'
-    ? `Here is the context from the user's documents: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}${enhancedContext}\n\nUser query: ${userQuery}
+    ? `CONTEXT FROM USER'S DOCUMENTS:
+${relevantText}
 
-PRECISE MODE - EXTRACT PRIMARY CONTENT ONLY
+CONVERSATION HISTORY:
+${memoryContext}${enhancedContext}
 
-CRITICAL: Your job is to find and extract THE ACTUAL CONTENT requested, not background/preparation information.
+USER QUERY: ${userQuery}
 
-STEP 1: SYSTEMATIC SCAN OF ALL SOURCES
-- Read every source completely, start to finish
-- Identify all sections that relate to the query
-- Do NOT stop after finding the first related section
+---
+PRECISE MODE INSTRUCTIONS:
 
-STEP 2: CLASSIFY EACH SECTION BY TYPE
-When you find multiple related sections, classify them:
+STEP 1: UNDERSTAND THE QUERY
+- Identify what type of information is being requested (definition, procedure, list, explanation, comparison, etc.)
+- Note any specific constraints (date ranges, file types, keywords)
+- Consider if this is a follow-up to previous conversation
 
-TYPE A - DIRECT ANSWER CONTENT (This is what to extract):
-   • The actual content that directly answers the query
-   • Complete procedures, questions, statements, definitions, or instructions
-   • Content often preceded by: "e.g.", "for example:", "following:", "such as:"
-   • Specific wording, steps, or items to be used/followed
+STEP 2: ANALYZE ALL SOURCES
+- Read through ALL provided sources completely
+- Evaluate each source's relevance score and content quality
+- Note if sources contradict each other
+- Identify the most authoritative/relevant sources
 
-TYPE B - SUPPORTING CONTENT (Use only if Type A doesn't exist):
-   • Additional related information
-   • Supplementary guidelines or notes
+STEP 3: EXTRACT AND SYNTHESIZE
+- Extract ONLY information that directly answers the query
+- If multiple sources contain the same information, use the highest-scored source
+- Preserve exact wording when extracting specific content (quotes, procedures, technical terms)
+- If sources contradict, mention the discrepancy
+- Combine information logically if it spans multiple sources
 
-TYPE C - META/CONTEXTUAL INFO (Avoid extracting this):
-   • When to do something ("before X", "after Y", timing/scheduling)
-   • Preparation or setup steps
-   • Background rationale or explanations
-   • Descriptions about the content rather than the content itself
+STEP 4: HANDLE EDGE CASES
+- If no relevant information found: Clearly state "I couldn't find relevant information in your documents about [query topic]."
+- If information is incomplete: Provide what's available and specify what's missing
+- If clarification needed: Ask specific follow-up questions
+- If duplicate/similar files detected: Mention this to the user
 
-SELECTION RULE: If the query asks for "the X" or "how to do X", extract the actual X itself (Type A), not information about when/why/how to prepare for X (Type C).
+STEP 5: FORMAT RESPONSE
+- Provide clear, direct answers in the same language as the query
+- Use bullet points or numbered lists for multiple items
+- Always cite sources at the end: "**Sources**: [source IDs]"
+- Only cite sources you actually used
 
-STEP 3: EXTRACT VERBATIM
-- Copy complete text word-for-word, character-by-character
-- Include ALL quoted text, examples, questions in full
-- Preserve formatting: "...", [...], punctuation
-- Combine seamlessly if content spans sources
+QUALITY CHECKS:
+✓ Does this directly answer what was asked?
+✓ Have I checked ALL sources, not just the first few?
+✓ Are my citations accurate?
+✓ Is the response in the correct language?`
+    : `CONTEXT FROM USER'S DOCUMENTS:
+${relevantText}
 
-CITE: "**Sources**: [IDs]"`
-    : `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}${enhancedContext}\n\nUser query: ${userQuery}
+CONVERSATION HISTORY:
+${memoryContext}${enhancedContext}
 
-Your task:
-1. Naturally understand the user's query using both the provided context and conversation history
-2. If the query refers to previous content (like "translate to Japanese", "summarize it"), use the conversation history to understand what they mean
-3. Provide the answer **using the context and your own knowledge** to the query
-4. If the context is empty and you can't answer from conversation history, ask the user to provide more information
-5. If you use context sources, cite them in this format: "**Sources**: Unique IDs exactly as shown in the context"`;
+USER QUERY: ${userQuery}
+
+---
+GENERAL MODE INSTRUCTIONS:
+
+STEP 1: UNDERSTAND THE REQUEST
+- Determine the user's intent and desired outcome
+- Check if this is a follow-up referencing previous responses
+- Identify the language of the query
+
+STEP 2: CHOOSE INFORMATION SOURCES
+Priority order:
+1. Previous conversation history (for follow-ups like "translate that", "summarize it")
+2. Provided document context (for document-specific questions)
+3. Your general knowledge (for context, explanations, or when documents lack info)
+
+STEP 3: FORMULATE RESPONSE
+- Provide helpful, accurate information
+- Use document context when available and relevant
+- Supplement with your knowledge to provide complete answers
+- If interpreting/analyzing content, be clear about your reasoning
+
+STEP 4: HANDLE SPECIAL CASES
+- Translation requests: Translate the most recent relevant content
+- Summary requests: Summarize from conversation history or context
+- Comparison/analysis: Use both documents and your knowledge
+- No relevant docs: Answer from general knowledge but note this
+
+STEP 5: FORMAT AND CITE
+- Respond in the SAME LANGUAGE as the query
+- If you used specific documents, cite them: "**Sources**: [IDs]"
+- If using only general knowledge, no citation needed
+- Be conversational and helpful
+
+QUALITY CHECKS:
+✓ Have I addressed the user's actual need?
+✓ Is this response helpful and actionable?
+✓ Have I appropriately balanced document info with general knowledge?
+✓ Is the language correct?`;
 
   console.log('user content: ', userContent);
   const messages = [
@@ -246,7 +306,7 @@ Your task:
 
 	const openaiResponse = await openai.chat.completions.create({
 		model: 'gpt-4o-mini',
-    max_tokens: 1024, // Limit response to 500 tokens
+    max_tokens: 2048, // Increased limit for comprehensive responses
     messages: messages,
 	});
 
