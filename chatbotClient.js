@@ -25,8 +25,6 @@ async function readLastLogin(namespace) {
 export async function queryPinecone(namespace, query, model, threshold, topK, filters = {}) {
   const embedding = await pc.inference.embed(model, [query], { inputType: 'query' });
 
-  console.log('filters: ', filters);
-
   const queryOptions = {
     topK: topK, // Retrieve top k results
     // *** production
@@ -43,8 +41,6 @@ export async function queryPinecone(namespace, query, model, threshold, topK, fi
 
   const queryResponse = await index.namespace(namespace).query(queryOptions);
 
-  console.log('pinecone raw response: ', queryResponse);
-
   return queryResponse.matches.filter(match => match.score >= threshold); // Filter low-score matches
 }
 
@@ -57,12 +53,9 @@ async function queryPineconeByIds(namespace, ids) {
 }
 
 export async function generateResponse(namespace, userQuery, model, clientMemory, answerMode, filters) {
-  console.log('user query is ', userQuery, ' googleId ', namespace, ' mode ', answerMode, ' filters ', filters);
-
   const today = new Date();
   const lastLoginDate = new Date(await readLastLogin(namespace));
   const diffDays = Math.floor((today - lastLoginDate) / (1000 * 60 * 60 * 24));
-  console.log('print diffDays: ', diffDays);
 
   // Handle new enhanced memory structure
   let memoryArray = [];
@@ -78,11 +71,6 @@ export async function generateResponse(namespace, userQuery, model, clientMemory
       memoryArray = clientMemory.conversationHistory || [];
       conversationContext = clientMemory.conversationContext || {};
       recentTopics = clientMemory.recentTopics || [];
-      console.log('Enhanced memory detected:', {
-        historyLength: memoryArray.length,
-        recentTopics,
-        conversationContext
-      });
     }
   }
 
@@ -107,7 +95,7 @@ FUNDAMENTAL RULES:
 
 2. CONTEXT AWARENESS:
    - Understand implicit references ("translate it", "summarize that", "tell me more")
-   - These refer to the most recent relevant content from conversation history
+   - These refer to the most recent relevant content from provided context
    - Works across all languages: "翻譯成日文", "要約して", "Resume esto", etc.
 
 3. ACCURACY OVER SPECULATION:
@@ -152,7 +140,6 @@ Remember: Your goal is to make document management effortless and information re
     enhancedContext += "User has been asking follow-up questions. Maintain consistency with previous responses.\n";
   }
 
-  console.log('enhancedContext: ', enhancedContext);
   let queryResponse;
   let relevantText;
 
@@ -183,7 +170,6 @@ Remember: Your goal is to make document management effortless and information re
 
   // Always perform fresh semantic search - the enhanced system prompt handles follow-ups intelligently
   queryResponse = await queryPinecone(namespace, userQuery, model, 0.30, 30, filters);
-  console.log("pinecone raw response:", queryResponse);
   
   relevantText = queryResponse.length > 0
     ? queryResponse.map((match, i) =>
@@ -240,14 +226,19 @@ STEP 4: HANDLE EDGE CASES
 STEP 5: FORMAT RESPONSE
 - Provide clear, direct answers in the same language as the query
 - Use bullet points or numbered lists for multiple items
-- Always cite sources at the end: "**Sources**: [source IDs]"
+- CRITICAL: Always cite sources at the end using the word "Sources" (in English only)
+- Format: "**Sources**: id-1, id-2, id-3"
+- Example: "**Sources**: d98ff440-c6b3-41ae-aaf0-d01a72f01746-3, d98ff440-c6b3-41ae-aaf0-d01a72f01746-6"
+- Use "Sources" even when responding in Chinese, Japanese, Korean, or other languages
+- Do NOT use brackets around IDs: write "id-1" not "[id-1]"
 - Only cite sources you actually used
 
 QUALITY CHECKS:
 ✓ Does this directly answer what was asked?
 ✓ Have I checked ALL sources, not just the first few?
-✓ Are my citations accurate?
-✓ Is the response in the correct language?`
+✓ Are my citations accurate and in the correct format (no brackets)?
+✓ Is the response in the correct language?
+✓ Did I use the word "Sources" in English (never translated)?`
     : `CONTEXT FROM USER'S DOCUMENTS:
 ${relevantText}
 
@@ -284,7 +275,11 @@ STEP 4: HANDLE SPECIAL CASES
 
 STEP 5: FORMAT AND CITE
 - Respond in the SAME LANGUAGE as the query
-- If you used specific documents, cite them: "**Sources**: [IDs]"
+- CRITICAL: If you used specific documents, cite them using the word "Sources" (in English only)
+- Format: "**Sources**: id-1, id-2, id-3"
+- Example: "**Sources**: d98ff440-c6b3-41ae-aaf0-d01a72f01746-3, d98ff440-c6b3-41ae-aaf0-d01a72f01746-6"
+- Use "Sources" even when responding in Chinese, Japanese, Korean, or other languages
+- Do NOT use brackets around IDs: write "id-1" not "[id-1]"
 - If using only general knowledge, no citation needed
 - Be conversational and helpful
 
@@ -292,9 +287,9 @@ QUALITY CHECKS:
 ✓ Have I addressed the user's actual need?
 ✓ Is this response helpful and actionable?
 ✓ Have I appropriately balanced document info with general knowledge?
-✓ Is the language correct?`;
+✓ Is the language correct?
+✓ If I cited sources, did I use "Sources" in English (never translated) and no brackets?`;
 
-  console.log('user content: ', userContent);
   const messages = [
     systemMessage,
     { role: 'user', content: userContent }
@@ -312,12 +307,6 @@ QUALITY CHECKS:
 
   const { cleanedText: aiResponse, citedSources: citedSourceIds } = extractAndRemoveSources(openaiResponse.choices[0].message.content);
 
-	const tokenUsage = openaiResponse.usage;
-
-	console.log(`Prompt Tokens: ${tokenUsage.prompt_tokens}`);
-	console.log(`Completion Tokens: ${tokenUsage.completion_tokens}`);
-	console.log(`Total Tokens: ${tokenUsage.total_tokens}`);
-
   return {
     aiResponse: aiResponse,
     citedSources: citedSourceIds
@@ -326,26 +315,19 @@ QUALITY CHECKS:
 }
 
 function extractAndRemoveSources(aiText) {
-    console.log('openaiResponse:', aiText);
-
     // Match "**Sources**: ..." or "Sources: ..." (case-insensitive)
     const match = aiText.match(/[*]*Sources[*]*:\s*([^\n]+)/i);
     if (!match) return { cleanedText: aiText.trim(), citedSources: [] };
-
-    console.log('Raw sources text:', match[1]);
 
     const citedSources = match[1]
         .split(',')
         .map(s => {
             const trimmed = s.trim();
-            // Only remove quotes and extra whitespace, keep alphanumeric, spaces, hyphens, underscores, dots, slashes
-            const cleaned = trimmed.replace(/['"]/g, '').trim();
-            console.log(`Source cleaning: "${trimmed}" -> "${cleaned}"`);
+            // Remove quotes, square brackets, and extra whitespace
+            const cleaned = trimmed.replace(/['"\[\]]/g, '').trim();
             return cleaned;
         })
         .filter(Boolean);  // Remove empty strings
-
-    console.log('Final citedSources:', citedSources);
 
     // Validate that these look like proper source IDs (should be alphanumeric with hyphens/underscores)
     const validSources = citedSources.filter(source => {
@@ -414,7 +396,6 @@ export async function interpretQuery(query) {
   // Parse the response
   // Extract the response text
   let extractedData = response.choices[0].message.content.trim();
-  console.log("Extracted Raw Filter Data:", extractedData); // Check the raw response
 
   // Regular expression to find JSON
   const jsonPattern = /\{.*\}/s; // This matches the first block of JSON
@@ -474,8 +455,6 @@ export async function interpretQuery(query) {
         }
       }
 
-      console.log('query filters: ', queryFilters);
-
       return queryFilters;
     } catch (error) {
       console.error('Error parsing extracted JSON:', error);
@@ -529,16 +508,14 @@ async function isFollowUpQuery(query) {
 }
 
 // Example usage:
-const query = "提供更完整的描述"; // Example in Chinese meaning "Give me more details"
-console.log(query);  // Output: { followUp: true, response: 'yes' }
-isFollowUpQuery(query).then(result => {
-    console.log(result);  // Output: { followUp: true, response: 'yes' }
-});
+// const query = "提供更完整的描述"; // Example in Chinese meaning "Give me more details"
+// isFollowUpQuery(query).then(result => {
+//     console.log(result);  // Output: { followUp: true, response: 'yes' }
+// });
 
 // Function to generate summary using OpenAI
 export async function generateSummary(text, filename, language = 'en') {
   try {
-    console.log(`Generating summary for file: ${filename} in language: ${language}`);
 
     // Truncate text if it's too long (OpenAI has token limits)
     // Using a more conservative limit to avoid token limit issues
@@ -606,8 +583,6 @@ export async function generateSummary(text, filename, language = 'en') {
     });
 
     const summary = completion.choices[0]?.message?.content?.trim() || 'Unable to generate summary';
-
-    console.log(`Summary generated for ${filename} in ${language}: ${summary.substring(0, 100)}...`);
 
     return {
       success: true,
