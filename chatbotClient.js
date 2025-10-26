@@ -34,12 +34,14 @@ export async function queryPinecone(namespace, query, model, threshold, topK, fi
     includeMetadata: true
   };
 
+  console.log('filters: ', filters);
   // Only add the filter if there is a valid filter
   if (filters && Object.keys(filters).length > 0) {
     queryOptions.filter = filters;
   }
-
   const queryResponse = await index.namespace(namespace).query(queryOptions);
+
+  console.log('queryResponse: ', queryResponse);
 
   return queryResponse.matches.filter(match => match.score >= threshold); // Filter low-score matches
 }
@@ -62,6 +64,8 @@ export async function generateResponse(namespace, userQuery, model, clientMemory
   let conversationContext = {};
   let recentTopics = [];
   
+  console.log('clientMemory: ', clientMemory);
+
   if (clientMemory && typeof clientMemory === 'object') {
     if (Array.isArray(clientMemory)) {
       // Old format - array of memory entries
@@ -123,6 +127,13 @@ FUNDAMENTAL RULES:
    - If query is ambiguous, ask for clarification
    - If information is incomplete, explain what's missing
 
+8. SOURCE CITATION FORMAT (CRITICAL - NON-NEGOTIABLE):
+   - ALWAYS use the English word "Sources" when citing documents
+   - NEVER translate to: 來源, ソース, 출처, Fuentes, Quellen, Fonti, or any other language
+   - Format: "**Sources**: id-1, id-2, id-3"
+   - Even when responding in Chinese, Japanese, Korean, Spanish, etc., ALWAYS write "**Sources**" in English
+   - This is a system requirement - failure to use "Sources" in English will cause errors
+
 Remember: Your goal is to make document management effortless and information retrieval instant and accurate.`
   };
 
@@ -169,7 +180,7 @@ Remember: Your goal is to make document management effortless and information re
   //     : `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **using the context and your own knowledge** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context". If the context is empty, ask the user to provide more information.`;
 
   // Always perform fresh semantic search - the enhanced system prompt handles follow-ups intelligently
-  queryResponse = await queryPinecone(namespace, userQuery, model, 0.30, 30, filters);
+  queryResponse = await queryPinecone(namespace, userQuery, model, 0.70, 30, filters);
   
   relevantText = queryResponse.length > 0
     ? queryResponse.map((match, i) =>
@@ -186,9 +197,8 @@ Remember: Your goal is to make document management effortless and information re
   //   ? `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **only based on the context** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context".\n\n  If the context is empty, ask the user to provide more information. If the cited sources contain almost identical information, such as similar filenames or content, ask the user if they want to remove duplicated copies.`
   //   : `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **using the context and your own knowledge** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context". If the context is empty, ask the user to provide more information.`;
 
-const userContent =
-  answerMode === 'precise'
-    ? `CONTEXT FROM USER'S DOCUMENTS:
+// Build common context header used by both modes
+const contextHeader = `CONTEXT FROM USER'S DOCUMENTS:
 ${relevantText}
 
 CONVERSATION HISTORY:
@@ -196,7 +206,11 @@ ${memoryContext}${enhancedContext}
 
 USER QUERY: ${userQuery}
 
----
+---`;
+
+const userContent =
+  answerMode === 'precise'
+    ? `${contextHeader}
 PRECISE MODE INSTRUCTIONS:
 
 STEP 1: UNDERSTAND THE QUERY
@@ -239,15 +253,7 @@ QUALITY CHECKS:
 ✓ Are my citations accurate and in the correct format (no brackets)?
 ✓ Is the response in the correct language?
 ✓ Did I use the word "Sources" in English (never translated)?`
-    : `CONTEXT FROM USER'S DOCUMENTS:
-${relevantText}
-
-CONVERSATION HISTORY:
-${memoryContext}${enhancedContext}
-
-USER QUERY: ${userQuery}
-
----
+    : `${contextHeader}
 GENERAL MODE INSTRUCTIONS:
 
 STEP 1: UNDERSTAND THE REQUEST
@@ -307,6 +313,10 @@ QUALITY CHECKS:
 
   const { cleanedText: aiResponse, citedSources: citedSourceIds } = extractAndRemoveSources(openaiResponse.choices[0].message.content);
 
+  console.log('contextHeader: ', contextHeader);
+  console.log('aiResponse: ', aiResponse);
+  console.log('citedSourceIds: ', citedSourceIds);
+  
   return {
     aiResponse: aiResponse,
     citedSources: citedSourceIds
