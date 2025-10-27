@@ -11,11 +11,17 @@ const userSchema = new mongoose.Schema({
     language: { type: String, default: "en" },
     answerMode: { type: String, default: "precise" },
     folders: {
-      watch: [{ type: String }],
+      watch: [{
+        id: { type: String },
+        path: { type: String },
+        sharedWith: [{ type: String }],
+        createdAt: { type: Date }
+      }],
       smart: [{
         id: { type: String },
         name: { type: String },
         description: { type: String },
+        sharedWith: [{ type: String }],
         createdAt: {
           start: { type: String },
           end: { type: String }

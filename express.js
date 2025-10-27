@@ -932,4 +932,239 @@ app.get('/test-index-stats', async (req, res) => {
   }
 });
 
+// API route to share a folder with other users
+app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
+  try {
+    const { googleId, identifier, folderType, sharedWith } = req.body;
+    
+    console.log('***sharing folder***');
+    console.log('googleId: ', googleId);
+    console.log('identifier: ', identifier);
+    console.log('folderType: ', folderType);
+    console.log('sharedWith: ', sharedWith);
+    // Validate input
+    if (!googleId || !identifier || !folderType || !sharedWith) {
+      return res.status(400).json({ 
+        error: "Missing required fields: googleId, identifier, folderType, sharedWith" 
+      });
+    }
+
+    if (!Array.isArray(sharedWith) || sharedWith.length === 0) {
+      return res.status(400).json({ 
+        error: "sharedWith must be a non-empty array" 
+      });
+    }
+
+    if (!['watch', 'smart'].includes(folderType)) {
+      return res.status(400).json({ 
+        error: "folderType must be 'watch' or 'smart'" 
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const email of sharedWith) {
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ 
+          error: `Invalid email format: ${email}` 
+        });
+      }
+    }
+
+    // Find user
+    const user = await User.findOne({ googleId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log('user: ', user);
+    console.log('user.preferences: ', user.preferences);
+    // Ensure preferences structure exists
+    if (!user.preferences) {
+      user.preferences = {};
+    }
+    if (!user.preferences.folders) {
+      user.preferences.folders = { watch: [], smart: [] };
+    }
+    if (!user.preferences.folders.watch) {
+      user.preferences.folders.watch = [];
+    }
+    if (!user.preferences.folders.smart) {
+      user.preferences.folders.smart = [];
+    }
+
+    // Find and update the folder
+    let folderFound = false;
+    if (folderType === 'watch') {
+      const watchFolders = user.preferences.folders.watch;
+      console.log('watchFolders:', JSON.stringify(watchFolders, null, 2));
+      console.log('watchFolders.length:', watchFolders.length);
+      
+      for (let i = 0; i < watchFolders.length; i++) {
+        const folder = watchFolders[i];
+        // Handle both old format (string) and new format (object)
+        const folderIdToCheck = typeof folder === 'string' ? null : folder.id;
+        
+        console.log(`Checking folder ${i}:`, {
+          folder: typeof folder === 'string' ? folder : folder.id,
+          folderIdToCheck,
+          identifier,
+          match: folderIdToCheck === identifier
+        });
+        
+        if (folderIdToCheck === identifier) {
+          // Initialize sharedWith if it doesn't exist
+          if (!folder.sharedWith) {
+            folder.sharedWith = [];
+          }
+          // Add new emails, avoiding duplicates
+          sharedWith.forEach(email => {
+            if (!folder.sharedWith.includes(email)) {
+              folder.sharedWith.push(email);
+            }
+          });
+          folderFound = true;
+          break;
+        }
+      }
+    } else if (folderType === 'smart') {
+      const smartFolders = user.preferences.folders.smart;
+      for (let i = 0; i < smartFolders.length; i++) {
+        if (smartFolders[i].id === identifier) {
+          // Initialize sharedWith if it doesn't exist
+          if (!smartFolders[i].sharedWith) {
+            smartFolders[i].sharedWith = [];
+          }
+          // Add new emails, avoiding duplicates
+          sharedWith.forEach(email => {
+            if (!smartFolders[i].sharedWith.includes(email)) {
+              smartFolders[i].sharedWith.push(email);
+            }
+          });
+          folderFound = true;
+          break;
+        }
+      }
+    }
+
+    if (!folderFound) {
+      return res.status(404).json({ 
+        error: `Folder with id ${identifier} not found in ${folderType} folders` 
+      });
+    }
+
+    // Save updated user
+    await user.save();
+
+    console.log(`✅ Folder ${identifier} shared with:`, sharedWith);
+    res.status(200).json({ 
+      message: "Folder shared successfully",
+      identifier,
+      folderType,
+      sharedWith: sharedWith
+    });
+
+  } catch (error) {
+    console.error("❌ Error sharing folder:", error);
+    res.status(500).json({ 
+      error: "Error sharing folder", 
+      details: error.message 
+    });
+  }
+});
+
+// API route to unshare a folder (remove specific emails)
+app.post("/api/folders/unshare", verifyJwtToken, async (req, res) => {
+  try {
+    const { googleId, identifier, folderType, emailsToRemove } = req.body;
+    
+    // Validate input
+    if (!googleId || !identifier || !folderType || !emailsToRemove) {
+      return res.status(400).json({ 
+        error: "Missing required fields: googleId, identifier, folderType, emailsToRemove" 
+      });
+    }
+
+    if (!Array.isArray(emailsToRemove) || emailsToRemove.length === 0) {
+      return res.status(400).json({ 
+        error: "emailsToRemove must be a non-empty array" 
+      });
+    }
+
+    if (!['watch', 'smart'].includes(folderType)) {
+      return res.status(400).json({ 
+        error: "folderType must be 'watch' or 'smart'" 
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ googleId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Ensure preferences structure exists
+    if (!user.preferences?.folders) {
+      return res.status(404).json({ error: "No folders found for user" });
+    }
+
+    // Find and update the folder
+    let folderFound = false;
+    if (folderType === 'watch') {
+      const watchFolders = user.preferences.folders.watch || [];
+      for (let i = 0; i < watchFolders.length; i++) {
+        const folder = watchFolders[i];
+        const folderIdToCheck = typeof folder === 'string' ? null : folder.id;
+        
+        if (folderIdToCheck === identifier) {
+          if (folder.sharedWith) {
+            folder.sharedWith = folder.sharedWith.filter(
+              email => !emailsToRemove.includes(email)
+            );
+          }
+          folderFound = true;
+          break;
+        }
+      }
+    } else if (folderType === 'smart') {
+      const smartFolders = user.preferences.folders.smart || [];
+      for (let i = 0; i < smartFolders.length; i++) {
+        if (smartFolders[i].id === identifier) {
+          if (smartFolders[i].sharedWith) {
+            smartFolders[i].sharedWith = smartFolders[i].sharedWith.filter(
+              email => !emailsToRemove.includes(email)
+            );
+          }
+          folderFound = true;
+          break;
+        }
+      }
+    }
+
+    if (!folderFound) {
+      return res.status(404).json({ 
+        error: `Folder with id ${identifier} not found in ${folderType} folders` 
+      });
+    }
+
+    // Save updated user
+    await user.save();
+
+    console.log(`✅ Removed sharing for folder ${identifier} from:`, emailsToRemove);
+    res.status(200).json({ 
+      message: "Folder unshared successfully",
+      identifier,
+      folderType,
+      removedEmails: emailsToRemove
+    });
+
+  } catch (error) {
+    console.error("❌ Error unsharing folder:", error);
+    res.status(500).json({ 
+      error: "Error unsharing folder", 
+      details: error.message 
+    });
+  }
+});
+
 
