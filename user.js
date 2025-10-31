@@ -31,6 +31,16 @@ const userSchema = new mongoose.Schema({
           end: { type: String }
         },
         fileTypes: [{ type: String }]
+      }],
+      shared: [{
+        ownerId: { type: String },           // googleId of the person who shared it
+        ownerEmail: { type: String },        // email of the owner (for display)
+        ownerName: { type: String },         // name of the owner (for display)
+        folderId: { type: String },          // the original folder's id
+        folderType: { type: String },        // 'watch' or 'smart'
+        folderName: { type: String },        // display name (path for watch, name for smart)
+        folderDescription: { type: String }, // description (empty for watch, description for smart)
+        sharedAt: { type: Date }            // when it was shared
       }]
     }
   },

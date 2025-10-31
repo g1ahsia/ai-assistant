@@ -883,7 +883,7 @@ app.post('/query-vectors', verifyJwtToken, async (req, res) => {
       console.log('🔍 Full stats from Pinecone:', JSON.stringify(stats, null, 2));
       
       const namespaceStats = stats.namespaces[googleId];
-      console.log('🔍 Namespace stats for', googleId, ':', namespaceStats);
+      console.log('🔍 Namespace stats for', googleId);
       
       if (!namespaceStats) {
         console.log(`⚠️ No vectors found in namespace: ${googleId}`);
@@ -937,11 +937,8 @@ app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
   try {
     const { googleId, identifier, folderType, sharedWith } = req.body;
     
-    console.log('***sharing folder***');
-    console.log('googleId: ', googleId);
-    console.log('identifier: ', identifier);
-    console.log('folderType: ', folderType);
-    console.log('sharedWith: ', sharedWith);
+    console.log(`📤 Sharing folder: ${identifier} (${folderType}) with:`, sharedWith);
+    
     // Validate input
     if (!googleId || !identifier || !folderType || !sharedWith) {
       return res.status(400).json({ 
@@ -971,14 +968,12 @@ app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
       }
     }
 
-    // Find user
+    // Find user (owner of the folder)
     const user = await User.findOne({ googleId });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    console.log('user: ', user);
-    console.log('user.preferences: ', user.preferences);
     // Ensure preferences structure exists
     if (!user.preferences) {
       user.preferences = {};
@@ -993,24 +988,16 @@ app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
       user.preferences.folders.smart = [];
     }
 
-    // Find and update the folder
+    // Find the folder and collect its details
     let folderFound = false;
+    let folderDetails = null;
+    
     if (folderType === 'watch') {
       const watchFolders = user.preferences.folders.watch;
-      console.log('watchFolders:', JSON.stringify(watchFolders, null, 2));
-      console.log('watchFolders.length:', watchFolders.length);
       
       for (let i = 0; i < watchFolders.length; i++) {
         const folder = watchFolders[i];
-        // Handle both old format (string) and new format (object)
         const folderIdToCheck = typeof folder === 'string' ? null : folder.id;
-        
-        console.log(`Checking folder ${i}:`, {
-          folder: typeof folder === 'string' ? folder : folder.id,
-          folderIdToCheck,
-          identifier,
-          match: folderIdToCheck === identifier
-        });
         
         if (folderIdToCheck === identifier) {
           // Initialize sharedWith if it doesn't exist
@@ -1023,6 +1010,11 @@ app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
               folder.sharedWith.push(email);
             }
           });
+          
+          folderDetails = {
+            name: folder.path,
+            description: ''
+          };
           folderFound = true;
           break;
         }
@@ -1041,6 +1033,11 @@ app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
               smartFolders[i].sharedWith.push(email);
             }
           });
+          
+          folderDetails = {
+            name: smartFolders[i].name,
+            description: smartFolders[i].description || ''
+          };
           folderFound = true;
           break;
         }
@@ -1053,15 +1050,75 @@ app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
       });
     }
 
-    // Save updated user
+    // Save owner's updated folder
     await user.save();
 
-    console.log(`✅ Folder ${identifier} shared with:`, sharedWith);
+    // Add folder to each recipient's shared folders
+    const sharedAtTime = new Date();
+    const recipientsProcessed = [];
+    const recipientsFailed = [];
+
+    for (const email of sharedWith) {
+      try {
+        // Find recipient by email
+        const recipient = await User.findOne({ email });
+        
+        if (!recipient) {
+          console.log(`⚠️ Recipient not found: ${email}`);
+          recipientsFailed.push({ email, reason: 'User not found' });
+          continue;
+        }
+
+        // Initialize folders structure if needed
+        if (!recipient.preferences) {
+          recipient.preferences = {};
+        }
+        if (!recipient.preferences.folders) {
+          recipient.preferences.folders = { watch: [], smart: [], shared: [] };
+        }
+        if (!recipient.preferences.folders.shared) {
+          recipient.preferences.folders.shared = [];
+        }
+
+        // Check if already shared with this recipient
+        const alreadyShared = recipient.preferences.folders.shared.some(
+          sf => sf.folderId === identifier && sf.ownerId === googleId
+        );
+
+        if (!alreadyShared) {
+          // Add to recipient's shared folders
+          recipient.preferences.folders.shared.push({
+            ownerId: googleId,
+            ownerEmail: user.email,
+            ownerName: user.name,
+            folderId: identifier,
+            folderType: folderType,
+            folderName: folderDetails.name,
+            folderDescription: folderDetails.description,
+            sharedAt: sharedAtTime,
+          });
+
+          await recipient.save();
+          recipientsProcessed.push(email);
+          console.log(`✅ Added to ${email}'s shared folders`);
+        } else {
+          recipientsProcessed.push(email);
+          console.log(`ℹ️ Already in ${email}'s shared folders`);
+        }
+      } catch (error) {
+        console.error(`❌ Error processing recipient ${email}:`, error);
+        recipientsFailed.push({ email, reason: error.message });
+      }
+    }
+
+    console.log(`✅ Folder ${identifier} shared with:`, recipientsProcessed);
+    
     res.status(200).json({ 
       message: "Folder shared successfully",
       identifier,
       folderType,
-      sharedWith: sharedWith
+      sharedWith: recipientsProcessed,
+      failed: recipientsFailed.length > 0 ? recipientsFailed : undefined
     });
 
   } catch (error) {
@@ -1073,21 +1130,183 @@ app.post("/api/folders/share", verifyJwtToken, async (req, res) => {
   }
 });
 
-// API route to unshare a folder (remove specific emails)
-app.post("/api/folders/unshare", verifyJwtToken, async (req, res) => {
+// API route to get vectors from a specific shared folder
+// NOTE: This must come BEFORE /api/folders/shared/:googleId to avoid route collision
+app.get("/api/folders/shared/vectors", verifyJwtToken, async (req, res) => {
   try {
-    const { googleId, identifier, folderType, emailsToRemove } = req.body;
+    const recipientGoogleId = req.user.googleId; // Recipient's googleId from JWT
+    const { ownerGoogleId, folderId, folderName } = req.query;
     
-    // Validate input
-    if (!googleId || !identifier || !folderType || !emailsToRemove) {
+    console.log(`🔍 Getting shared vectors - recipient: ${recipientGoogleId}, owner: ${ownerGoogleId}, folderId: ${folderId}, folderName: ${folderName}`);
+    
+    // Validate required parameters
+    if (!ownerGoogleId || !folderId || !folderName) {
       return res.status(400).json({ 
-        error: "Missing required fields: googleId, identifier, folderType, emailsToRemove" 
+        error: "Missing required parameters: ownerGoogleId, folderId, folderName" 
       });
     }
 
-    if (!Array.isArray(emailsToRemove) || emailsToRemove.length === 0) {
+    console.log(`🔍 Recipient user: ${recipientGoogleId}`);
+    
+    // Find owner user first to get folder details
+    const ownerUser = await User.findOne({ googleId: ownerGoogleId });
+    if (!ownerUser) {
+      return res.status(404).json({ error: "Owner user not found" });
+    }
+
+    // Find the folder in owner's watch folders
+    const watchFolders = ownerUser.preferences?.folders?.watch || [];
+    const ownerFolder = watchFolders.find(f => f.id === folderId);
+    
+    if (!ownerFolder) {
+      return res.status(404).json({ 
+        error: "Folder not found in owner's folders" 
+      });
+    }
+
+    // Find recipient user and verify they have access to this shared folder
+    const recipientUser = await User.findOne({ googleId: recipientGoogleId });
+    
+    // If recipient user exists, check their shared folders for verification
+    if (recipientUser) {
+      const sharedFolders = recipientUser.preferences?.folders?.shared || [];
+      const sharedFolder = sharedFolders.find(
+        sf => sf.folderId === folderId && sf.ownerId === ownerGoogleId
+      );
+
+      if (!sharedFolder) {
+        return res.status(403).json({ 
+          error: "Access denied: Folder not shared with this user" 
+        });
+      }
+      console.log(`✅ Verified access via recipient's shared folders: ${sharedFolder.folderName}`);
+    } else {
+      // If recipient doesn't exist, check if they're in the owner's sharedWith list
+      const sharedWith = ownerFolder.sharedWith || [];
+      
+      // Get recipient's email from JWT token
+      const recipientEmail = req.user.email;
+      
+      if (!recipientEmail || !sharedWith.includes(recipientEmail)) {
+        return res.status(403).json({ 
+          error: "Access denied: You don't have permission to access this folder" 
+        });
+      }
+      console.log(`✅ Verified access via owner's sharedWith list for: ${recipientEmail}`);
+    }
+
+    // Query Pinecone from owner's namespace
+    const index = pc.index(indexName);
+    
+    // Build filter for this specific folder using folderName
+    const filter = {
+      folderName: folderName
+    };
+
+    // Get dimension for dummy vector
+    const stats = await index.describeIndexStats();
+    const dummyVector = new Array(stats.dimension).fill(0);
+
+    // Query owner's namespace
+    console.log(`🔍 Querying namespace: ${ownerGoogleId}`);
+    console.log(`🔍 Filter: folderName="${folderName}"`);
+    const results = await index.namespace(ownerGoogleId).query({
+      vector: dummyVector,
+      topK: 10000, // Get all vectors from this folder
+      filter: filter,
+      includeMetadata: true
+    });
+
+    console.log(`📊 Found ${results.matches.length} vectors in folder`);
+
+    // Process results - extract UUID and return metadata
+    const vectors = results.matches.map(match => {
+      const uuid = match.id.replace(/-\d+$/, ''); // Remove chunk suffix
+      
+      return {
+        uuid: uuid,
+        ...match.metadata
+      };
+    });
+
+    // Sort by updatedAt (newest first)
+    vectors.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+    console.log(`📊 Returning ${vectors.length} vectors from shared folder`);
+    
+    res.status(200).json({
+      vectors: vectors,
+      folderId: folderId,
+      folderName: folderName,
+      ownerId: ownerGoogleId,
+      total: vectors.length
+    });
+
+  } catch (error) {
+    console.error("❌ Error retrieving shared vectors:", error);
+    res.status(500).json({ 
+      error: "Error retrieving shared vectors", 
+      details: error.message 
+    });
+  }
+});
+
+// API route to get shared folders for a user
+app.get("/api/folders/shared/:googleId", verifyJwtToken, async (req, res) => {
+  try {
+    const { googleId } = req.params;
+    
+    if (!googleId) {
+      return res.status(400).json({ error: "Missing googleId" });
+    }
+
+    // Find user
+    const user = await User.findOne({ googleId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Get shared folders
+    const sharedFolders = user.preferences?.folders?.shared || [];
+    
+    console.log(`📂 Retrieved ${sharedFolders.length} shared folders for user: ${googleId}`);
+    res.status(200).json({ 
+      sharedFolders,
+      count: sharedFolders.length
+    });
+
+  } catch (error) {
+    console.error("❌ Error retrieving shared folders:", error);
+    res.status(500).json({ 
+      error: "Error retrieving shared folders", 
+      details: error.message 
+    });
+  }
+});
+
+// API route to unshare a folder (remove specific emails)
+app.post("/api/folders/unshare", verifyJwtToken, async (req, res) => {
+  try {
+    const { googleId, identifier, folderType, emailsToUnshare } = req.body;
+    
+    console.log('\n🔓 === UNSHARE ENDPOINT CALLED ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('googleId:', req.body.googleId);
+    console.log('identifier:', req.body.identifier);
+    console.log('folderType:', req.body.folderType);
+    console.log('emailsToUnshare:', req.body.emailsToUnshare);
+    
+    // Validate input
+    if (!googleId || !identifier || !folderType || !emailsToUnshare) {
       return res.status(400).json({ 
-        error: "emailsToRemove must be a non-empty array" 
+        error: "Missing required fields: googleId, identifier, folderType, emailsToUnshare" 
+      });
+    }
+
+    if (!Array.isArray(emailsToUnshare) || emailsToUnshare.length === 0) {
+      return res.status(400).json({ 
+        error: "emailsToUnshare must be a non-empty array" 
       });
     }
 
@@ -1119,7 +1338,7 @@ app.post("/api/folders/unshare", verifyJwtToken, async (req, res) => {
         if (folderIdToCheck === identifier) {
           if (folder.sharedWith) {
             folder.sharedWith = folder.sharedWith.filter(
-              email => !emailsToRemove.includes(email)
+              email => !emailsToUnshare.includes(email)
             );
           }
           folderFound = true;
@@ -1132,7 +1351,7 @@ app.post("/api/folders/unshare", verifyJwtToken, async (req, res) => {
         if (smartFolders[i].id === identifier) {
           if (smartFolders[i].sharedWith) {
             smartFolders[i].sharedWith = smartFolders[i].sharedWith.filter(
-              email => !emailsToRemove.includes(email)
+              email => !emailsToUnshare.includes(email)
             );
           }
           folderFound = true;
@@ -1147,15 +1366,79 @@ app.post("/api/folders/unshare", verifyJwtToken, async (req, res) => {
       });
     }
 
-    // Save updated user
+    // Save owner's updated folder
     await user.save();
 
-    console.log(`✅ Removed sharing for folder ${identifier} from:`, emailsToRemove);
+    // Remove folder from each recipient's shared folders
+    const recipientsProcessed = [];
+    const recipientsFailed = [];
+
+    console.log(`🗑️ Removing folder ${identifier} from recipients:`, emailsToUnshare);
+    console.log(`📌 Owner googleId: ${googleId}`);
+
+    for (const email of emailsToUnshare) {
+      try {
+        console.log(`\n--- Processing recipient: ${email} ---`);
+        
+        // Find recipient by email
+        const recipient = await User.findOne({ email });
+        
+        if (!recipient) {
+          console.log(`⚠️ Recipient not found: ${email}`);
+          recipientsFailed.push({ email, reason: 'User not found' });
+          continue;
+        }
+
+        console.log(`✓ Found recipient: ${recipient.name} (${recipient.googleId})`);
+
+        // Remove from recipient's shared folders
+        if (recipient.preferences?.folders?.shared) {
+          const originalLength = recipient.preferences.folders.shared.length;
+          console.log(`📂 Recipient has ${originalLength} shared folders`);
+          
+          // Log all shared folders before filtering
+          console.log('Current shared folders:');
+          recipient.preferences.folders.shared.forEach((sf, index) => {
+            console.log(`  [${index}] folderId: ${sf.folderId}, ownerId: ${sf.ownerId}, folderName: ${sf.folderName}`);
+          });
+          
+          // Filter out the folder
+          recipient.preferences.folders.shared = recipient.preferences.folders.shared.filter(
+            sf => {
+              const shouldKeep = !(sf.folderId === identifier && sf.ownerId === googleId);
+              console.log(`  Checking: folderId=${sf.folderId} === ${identifier}? ${sf.folderId === identifier}, ownerId=${sf.ownerId} === ${googleId}? ${sf.ownerId === googleId}, shouldKeep=${shouldKeep}`);
+              return shouldKeep;
+            }
+          );
+          
+          const newLength = recipient.preferences.folders.shared.length;
+          console.log(`📂 After filtering: ${newLength} shared folders`);
+          
+          if (newLength < originalLength) {
+            await recipient.save();
+            recipientsProcessed.push(email);
+            console.log(`✅ Removed from ${email}'s shared folders (${originalLength} -> ${newLength})`);
+          } else {
+            recipientsProcessed.push(email);
+            console.log(`ℹ️ Not found in ${email}'s shared folders (no match found)`);
+          }
+        } else {
+          recipientsProcessed.push(email);
+          console.log(`ℹ️ ${email} has no shared folders array`);
+        }
+      } catch (error) {
+        console.error(`❌ Error processing recipient ${email}:`, error);
+        recipientsFailed.push({ email, reason: error.message });
+      }
+    }
+
+    console.log(`✅ Removed sharing for folder ${identifier} from:`, recipientsProcessed);
     res.status(200).json({ 
       message: "Folder unshared successfully",
       identifier,
       folderType,
-      removedEmails: emailsToRemove
+      removedEmails: recipientsProcessed,
+      failed: recipientsFailed.length > 0 ? recipientsFailed : undefined
     });
 
   } catch (error) {
