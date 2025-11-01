@@ -34,11 +34,22 @@ export async function queryPinecone(namespace, query, model, threshold, topK, fi
     includeMetadata: true
   };
 
-  console.log('filters: ', filters);
+  console.log('\n📊 === FILTERS IN queryPinecone() ===');
+  console.log('Namespace:', namespace);
+  console.log('Query:', query);
+  console.log('Filters type:', typeof filters);
+  console.log('Filters:', JSON.stringify(filters, null, 2));
+  console.log('Has filters:', filters && Object.keys(filters).length > 0);
+  
   // Only add the filter if there is a valid filter
   if (filters && Object.keys(filters).length > 0) {
     queryOptions.filter = filters;
+    console.log('✅ Filter added to queryOptions');
+  } else {
+    console.log('⚠️ No filter applied (empty or null)');
   }
+  console.log('=====================================\n');
+  
   const queryResponse = await index.namespace(namespace).query(queryOptions);
 
   console.log('queryResponse: ', queryResponse);
@@ -48,8 +59,6 @@ export async function queryPinecone(namespace, query, model, threshold, topK, fi
 
 async function queryPineconeByIds(namespace, ids) {
   const queryResponse = await index.namespace(namespace).fetch(ids);
-
-  // console.log('queryResponse:', queryResponse);
 
   return queryResponse;
 }
@@ -154,32 +163,11 @@ Remember: Your goal is to make document management effortless and information re
   let queryResponse;
   let relevantText;
 
-  // Include the folder filter into the userContent for AI to understand the context
-  // if (Object.keys(filters).length > 0) {
-  //   queryResponse = await queryPinecone(namespace, userQuery, model, 0.80, 10, filters);
-  //   console.log("queryResponse: ", queryResponse);
-  //   relevantText = queryResponse.length > 0
-  //     ? queryResponse.map((match, i) =>
-  //       `### Source: ${match.id}\n
-  //       Filename: ${match.metadata.filename}\n
-  //       File Type: ${match.metadata.fileType}\n
-  //       Folder Name: ${match.metadata.folderName}\n
-  //       Score: ${match.score.toFixed(2)})\n
-  //       Content: ${match.metadata.text}`
-  //       ).join('\n\n')
-  //     : 'No relevant information found in the database.';
+  console.log('\n🎯 === FILTERS IN generateResponse() ===');
+  console.log('About to call queryPinecone with filters:', JSON.stringify(filters, null, 2));
+  console.log('========================================\n');
 
-  // // Get the memory as a string (previous user inputs and AI responses)
-  // // const memoryContext = memory.getMemoryAsString();
-
-  //   // const filteredText = `The filter applied is: '${JSON.stringify(filters)}'`;
-  //   // userContent = `Here are the files: \n${relevantText}\n\nPlease list the filenames and cite the sources at the end of the response you used in the exact format "**Sources**: Unique IDs exactly as shown in the context".`;
-  //   userContent =
-  //   answerMode === 'precise'
-  //     ? `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **only based on the context** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context". If the context is empty, ask the user to provide more information.`
-  //     : `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **using the context and your own knowledge** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context". If the context is empty, ask the user to provide more information.`;
-
-  // Always perform fresh semantic search - the enhanced system prompt handles follow-ups intelligently
+  // Always perform fresh semantic search - the enhanced system prompt handles followx-ups intelligently
   queryResponse = await queryPinecone(namespace, userQuery, model, 0.70, 30, filters);
   
   relevantText = queryResponse.length > 0
@@ -616,17 +604,3 @@ export async function generateSummary(text, filename, language = 'en') {
     throw new Error(`Failed to generate summary: ${error.message}`);
   }
 }
-
-// const query1 = '如何成為一位謙遜的人？'; // Example query (replace with your actual query)
-// generateResponse(query1, model).then(response => {
-//   console.log('8. Generated Text:', response);
-// }).catch(error => {
-//   console.error('Error:', error);
-// });
-
-// generateSamplePrompts(model).then(response => {
-//   console.log('8. Sample Text:', response);
-// }).catch(error => {
-//   console.error('Error:', error);
-// });
-

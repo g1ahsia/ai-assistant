@@ -49,8 +49,6 @@ export async function queryPinecone(namespace, query, model, threshold, topK, fi
 async function queryPineconeByIds(namespace, ids) {
   const queryResponse = await index.namespace(namespace).fetch(ids);
 
-  // console.log('queryResponse:', queryResponse);
-
   return queryResponse;
 }
 
@@ -137,31 +135,6 @@ IMPORTANT: Always respond to the user in the SAME LANGUAGE as their query. If th
   console.log('enhancedContext: ', enhancedContext);
   let queryResponse;
   let relevantText;
-
-  // Include the folder filter into the userContent for AI to understand the context
-  // if (Object.keys(filters).length > 0) {
-  //   queryResponse = await queryPinecone(namespace, userQuery, model, 0.80, 10, filters);
-  //   console.log("queryResponse: ", queryResponse);
-  //   relevantText = queryResponse.length > 0
-  //     ? queryResponse.map((match, i) =>
-  //       `### Source: ${match.id}\n
-  //       Filename: ${match.metadata.filename}\n
-  //       File Type: ${match.metadata.fileType}\n
-  //       Folder Name: ${match.metadata.folderName}\n
-  //       Score: ${match.score.toFixed(2)})\n
-  //       Content: ${match.metadata.text}`
-  //       ).join('\n\n')
-  //     : 'No relevant information found in the database.';
-
-  // // Get the memory as a string (previous user inputs and AI responses)
-  // // const memoryContext = memory.getMemoryAsString();
-
-  //   // const filteredText = `The filter applied is: '${JSON.stringify(filters)}'`;
-  //   // userContent = `Here are the files: \n${relevantText}\n\nPlease list the filenames and cite the sources at the end of the response you used in the exact format "**Sources**: Unique IDs exactly as shown in the context".`;
-  //   userContent =
-  //   answerMode === 'precise'
-  //     ? `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **only based on the context** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context". If the context is empty, ask the user to provide more information.`
-  //     : `Here is the context: \n${relevantText}\n\nHere is some context from previous conversation: \n${memoryContext}\n\nPlease provide the answer **using the context and your own knowledge** to the query: ${userQuery}\n\n Cite any sources you used at the end of the response in the exact format "**Sources**: Unique IDs exactly as shown in the context". If the context is empty, ask the user to provide more information.`;
 
   // Always perform fresh semantic search - the enhanced system prompt handles follow-ups intelligently
   queryResponse = await queryPinecone(namespace, userQuery, model, 0.80, 5, filters);

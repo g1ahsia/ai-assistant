@@ -358,6 +358,11 @@ app.post('/chat', verifyJwtToken, async (req, res) => {
   try {
     const { googleId, query, memory, answerMode, filters } = req.body; // User input from the front-end
     console.log('user query is ', query, ' googleId ', googleId, ' mode ', answerMode, ' filters ', filters);
+    console.log('\n🔍 === FILTERS RECEIVED FROM CLIENT ===');
+    console.log('Type:', typeof filters);
+    console.log('Is Array:', Array.isArray(filters));
+    console.log('Stringified:', JSON.stringify(filters, null, 2));
+    console.log('======================================\n');
 
 
     const user = await User.findOne({ googleId });
