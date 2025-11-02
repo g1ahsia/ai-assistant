@@ -57,6 +57,145 @@ export async function queryPinecone(namespace, query, model, threshold, topK, fi
   return queryResponse.matches.filter(match => match.score >= threshold); // Filter low-score matches
 }
 
+// Helper function to build filter for a namespace
+function buildNamespaceFilter(watchFolderPaths = [], smartFolderNames = [], filePaths = []) {
+  const conditions = [];
+  
+  // Add watch folder conditions
+  if (watchFolderPaths && watchFolderPaths.length > 0) {
+    conditions.push(
+      watchFolderPaths.length === 1
+        ? { folderName: watchFolderPaths[0] }
+        : { folderName: { $in: watchFolderPaths } }
+    );
+  }
+  
+  // Add smart folder conditions
+  if (smartFolderNames && smartFolderNames.length > 0) {
+    conditions.push(
+      smartFolderNames.length === 1
+        ? { smartFolderName: smartFolderNames[0] }
+        : { smartFolderName: { $in: smartFolderNames } }
+    );
+  }
+  
+  // Add file path conditions
+  if (filePaths && filePaths.length > 0) {
+    conditions.push(
+      filePaths.length === 1
+        ? { filepath: filePaths[0] }
+        : { filepath: { $in: filePaths } }
+    );
+  }
+  
+  // Combine with OR logic
+  if (conditions.length === 0) {
+    return {};
+  } else if (conditions.length === 1) {
+    return conditions[0];
+  } else {
+    return { $or: conditions };
+  }
+}
+
+// Query multiple namespaces and combine results
+export async function queryMultipleNamespaces(userNamespace, query, model, threshold, topK, ownFilters, sharedFilters = []) {
+  console.log('\n🌐 === QUERYING MULTIPLE NAMESPACES ===');
+  console.log('User namespace:', userNamespace);
+  console.log('Own filters:', JSON.stringify(ownFilters, null, 2));
+  console.log('Shared filters:', JSON.stringify(sharedFilters, null, 2));
+  
+  const embedding = await pc.inference.embed(model, [query], { inputType: 'query' });
+  const vectorValues = embedding.data[0].values;
+  
+  const allResults = [];
+  
+  // Query user's own namespace
+  if (ownFilters && (ownFilters.watchFolderPaths?.length > 0 || ownFilters.smartFolderNames?.length > 0 || ownFilters.filePaths?.length > 0)) {
+    console.log('\n📁 Querying OWN namespace:', userNamespace);
+    const ownFilter = buildNamespaceFilter(
+      ownFilters.watchFolderPaths,
+      ownFilters.smartFolderNames,
+      ownFilters.filePaths
+    );
+    console.log('Own filter:', JSON.stringify(ownFilter, null, 2));
+    
+    try {
+      const ownResponse = await index.namespace(userNamespace).query({
+        vector: vectorValues,
+        topK: topK,
+        filter: ownFilter,
+        includeValues: true,
+        includeMetadata: true
+      });
+      
+      const ownMatches = ownResponse.matches.filter(match => match.score >= threshold);
+      console.log(`✅ Found ${ownMatches.length} results from own namespace`);
+      allResults.push(...ownMatches);
+    } catch (error) {
+      console.error(`❌ Error querying own namespace:`, error);
+    }
+  }
+  
+  // Query each shared namespace
+  if (sharedFilters && sharedFilters.length > 0) {
+    for (const shared of sharedFilters) {
+      if (!shared.ownerId) {
+        console.warn('⚠️ Skipping shared filter without ownerId:', shared);
+        continue;
+      }
+      
+      console.log(`\n👥 Querying SHARED namespace:`, shared.ownerId);
+      const sharedFilter = buildNamespaceFilter(
+        shared.folderNames,
+        [], // Smart folders use folderNames in shared context
+        shared.filePaths
+      );
+      console.log('Shared filter:', JSON.stringify(sharedFilter, null, 2));
+      
+      try {
+        const sharedResponse = await index.namespace(shared.ownerId).query({
+          vector: vectorValues,
+          topK: topK,
+          filter: sharedFilter,
+          includeValues: true,
+          includeMetadata: true
+        });
+        
+        const sharedMatches = sharedResponse.matches.filter(match => match.score >= threshold);
+        console.log(`✅ Found ${sharedMatches.length} results from owner ${shared.ownerId}`);
+        
+        // Add owner info to metadata for tracking
+        sharedMatches.forEach(match => {
+          match.metadata = match.metadata || {};
+          match.metadata.sharedFromOwnerId = shared.ownerId;
+        });
+        
+        allResults.push(...sharedMatches);
+      } catch (error) {
+        console.error(`❌ Error querying namespace ${shared.ownerId}:`, error);
+      }
+    }
+  }
+  
+  // Sort by score (highest first) and deduplicate by ID
+  allResults.sort((a, b) => b.score - a.score);
+  
+  const uniqueResults = [];
+  const seenIds = new Set();
+  for (const result of allResults) {
+    if (!seenIds.has(result.id)) {
+      seenIds.add(result.id);
+      uniqueResults.push(result);
+    }
+  }
+  
+  console.log(`\n📊 Combined results: ${uniqueResults.length} unique matches from ${allResults.length} total`);
+  console.log('=======================================\n');
+  
+  return uniqueResults.slice(0, topK); // Return top K
+}
+
 async function queryPineconeByIds(namespace, ids) {
   const queryResponse = await index.namespace(namespace).fetch(ids);
 
@@ -164,11 +303,29 @@ Remember: Your goal is to make document management effortless and information re
   let relevantText;
 
   console.log('\n🎯 === FILTERS IN generateResponse() ===');
-  console.log('About to call queryPinecone with filters:', JSON.stringify(filters, null, 2));
+  console.log('About to query with filters:', JSON.stringify(filters, null, 2));
   console.log('========================================\n');
 
-  // Always perform fresh semantic search - the enhanced system prompt handles followx-ups intelligently
-  queryResponse = await queryPinecone(namespace, userQuery, model, 0.70, 30, filters);
+  // Check if using new structured filter format (own + shared)
+  const hasStructuredFilters = filters && (filters.own || filters.shared);
+  
+  if (hasStructuredFilters) {
+    // Use multi-namespace query for structured filters
+    console.log('🌐 Using multi-namespace query (own + shared content)');
+    queryResponse = await queryMultipleNamespaces(
+      namespace,
+      userQuery,
+      model,
+      0.70,
+      30,
+      filters.own || {},
+      filters.shared || []
+    );
+  } else {
+    // Use traditional single-namespace query for backward compatibility
+    console.log('📁 Using single-namespace query (legacy format)');
+    queryResponse = await queryPinecone(namespace, userQuery, model, 0.70, 30, filters);
+  }
   
   relevantText = queryResponse.length > 0
     ? queryResponse.map((match, i) =>
@@ -205,6 +362,7 @@ STEP 1: UNDERSTAND THE QUERY
 - Identify what type of information is being requested (definition, procedure, list, explanation, comparison, etc.)
 - Note any specific constraints (date ranges, file types, keywords)
 - Consider if this is a follow-up to previous conversation
+- IMPORTANT: If the query uses vague references like "this file", "that document", "it", etc., the user is referring to the documents in the CONTEXT FROM USER'S DOCUMENTS section above. Answer based on those provided sources.
 
 STEP 2: ANALYZE ALL SOURCES
 - Read through ALL provided sources completely
@@ -220,7 +378,8 @@ STEP 3: EXTRACT AND SYNTHESIZE
 - Combine information logically if it spans multiple sources
 
 STEP 4: HANDLE EDGE CASES
-- If no relevant information found: Clearly state "I couldn't find relevant information in your documents about [query topic]."
+- If no context provided (CONTEXT FROM USER'S DOCUMENTS says "No relevant information found"): Clearly state "I couldn't find relevant information in your documents about [query topic]."
+- If context IS provided but query is vague: Answer based on the provided context. For queries like "what is this file about?", describe the content and purpose of the document(s) in the context.
 - If information is incomplete: Provide what's available and specify what's missing
 - If clarification needed: Ask specific follow-up questions
 - If duplicate/similar files detected: Mention this to the user
@@ -248,6 +407,7 @@ STEP 1: UNDERSTAND THE REQUEST
 - Determine the user's intent and desired outcome
 - Check if this is a follow-up referencing previous responses
 - Identify the language of the query
+- IMPORTANT: If the query uses vague references like "this file", "that document", "it", etc., the user is referring to the documents in the CONTEXT FROM USER'S DOCUMENTS section above. Answer based on those provided sources.
 
 STEP 2: CHOOSE INFORMATION SOURCES
 Priority order:
