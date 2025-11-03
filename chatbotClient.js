@@ -58,15 +58,18 @@ export async function queryPinecone(namespace, query, model, threshold, topK, fi
 }
 
 // Helper function to build filter for a namespace
-function buildNamespaceFilter(watchFolderPaths = [], smartFolderNames = [], filePaths = []) {
+// watchFolderNames: array of folder names (e.g., ["test", "AWS"]) - maps to Pinecone's "folderName" field
+// smartFolderNames: array of smart folder names - maps to Pinecone's "smartFolderName" field
+// filePaths: array of full file paths - maps to Pinecone's "filepath" field
+function buildNamespaceFilter(watchFolderNames = [], smartFolderNames = [], filePaths = []) {
   const conditions = [];
   
-  // Add watch folder conditions
-  if (watchFolderPaths && watchFolderPaths.length > 0) {
+  // Add watch folder conditions - use folderName field in Pinecone
+  if (watchFolderNames && watchFolderNames.length > 0) {
     conditions.push(
-      watchFolderPaths.length === 1
-        ? { folderName: watchFolderPaths[0] }
-        : { folderName: { $in: watchFolderPaths } }
+      watchFolderNames.length === 1
+        ? { folderName: watchFolderNames[0] }
+        : { folderName: { $in: watchFolderNames } }
     );
   }
   
@@ -99,6 +102,8 @@ function buildNamespaceFilter(watchFolderPaths = [], smartFolderNames = [], file
 }
 
 // Query multiple namespaces and combine results
+// Expected ownFilters structure: { watchFolderNames: [], smartFolderNames: [], filePaths: [] }
+// Expected sharedFilters structure: [{ ownerId: "googleId", folderNames: [], filePaths: [] }]
 export async function queryMultipleNamespaces(userNamespace, query, model, threshold, topK, ownFilters, sharedFilters = []) {
   console.log('\n🌐 === QUERYING MULTIPLE NAMESPACES ===');
   console.log('User namespace:', userNamespace);
@@ -111,10 +116,10 @@ export async function queryMultipleNamespaces(userNamespace, query, model, thres
   const allResults = [];
   
   // Query user's own namespace
-  if (ownFilters && (ownFilters.watchFolderPaths?.length > 0 || ownFilters.smartFolderNames?.length > 0 || ownFilters.filePaths?.length > 0)) {
+  if (ownFilters && (ownFilters.watchFolderNames?.length > 0 || ownFilters.smartFolderNames?.length > 0 || ownFilters.filePaths?.length > 0)) {
     console.log('\n📁 Querying OWN namespace:', userNamespace);
     const ownFilter = buildNamespaceFilter(
-      ownFilters.watchFolderPaths,
+      ownFilters.watchFolderNames,
       ownFilters.smartFolderNames,
       ownFilters.filePaths
     );
