@@ -1,0 +1,45 @@
+# ============================================
+# Panlo AI Assistant - Enterprise Configuration Template
+# Copy this to .env.enterprise and fill in your values
+# ============================================
+
+# Pinecone Configuration
+PINECONE_API_KEY=your_pinecone_api_key_here
+PINECONE_ENVIRONMENT=us-east-1
+PINECONE_INDEX_NAME=panlo-prod-apne1
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Database Configuration (MySQL)
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=panlo_user
+DB_PASSWORD=your_secure_password_here
+DB_NAME=panlo_enterprise
+DB_CONNECTION_LIMIT=10
+
+# Authentication & Security
+JWT_SECRET=your_jwt_secret_key_here
+JWT_EXPIRY=7d
+GOOGLE_CLIENT_ID=your_google_oauth_client_id_here
+
+# API Server Configuration
+PORT=3000
+HOST=localhost
+CORS_ORIGINS=http://localhost:3000,https://app.panlo.ai
+NODE_ENV=production
+
+# Logging & Monitoring
+LOG_LEVEL=info
+AUDIT_ENABLED=true
+
+# Performance Tuning (Optional)
+VECTOR_TOP_K=30
+VECTOR_THRESHOLD=0.70
+MAX_CHUNK_SIZE=1000
+CHUNK_OVERLAP=200
+BACKGROUND_UPDATE_BATCH_SIZE=100
+BACKGROUND_UPDATE_DELAY_MS=1000
+ALLOWLIST_TTL=300
+
