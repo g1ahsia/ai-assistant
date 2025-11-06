@@ -14,6 +14,48 @@ All conversation endpoints require JWT authentication via the `Authorization: Be
 
 ---
 
+## 💡 Why Store Folder & File IDs?
+
+**The Problem:** Users want focused conversations without repeatedly selecting which folders/files to search.
+
+**The Solution:** Each conversation can store its "query scope":
+- **`folderIds`** - Watch folders or smart folders to include
+- **`fileIds`** - Specific individual files to include
+
+**How It Works:**
+
+1. **User creates conversation** and selects scope:
+   ```
+   "Marketing Q4" → Searches: Marketing folder + Budget file
+   ```
+
+2. **Every message automatically uses that scope:**
+   - User: "What was our social media spend?"
+   - System searches: Marketing folder + Budget file ✓
+   - No need to re-select each time!
+
+3. **Scope can be updated mid-conversation:**
+   - User adds "Finance" folder
+   - Future messages now search: Marketing + Finance + Budget
+
+4. **UI benefits:**
+   - Shows active scope: "📁 Marketing 📄 Budget.xlsx"
+   - Users know what's being searched
+   - Can adjust scope anytime
+
+5. **Optional, not enforced:**
+   - Empty `[]` = search all accessible content
+   - User can override per-message if needed
+   - Just a convenience, not a restriction
+
+**Real vs. Intended Sources:**
+- `folderIds/fileIds` = what user *wants* to search (stored in conversation)
+- `cited_sources` = what AI *actually* used (stored per message)
+
+Both are useful for different purposes!
+
+---
+
 ## 🗂️ Data Models
 
 ### Conversation Object
@@ -24,7 +66,11 @@ All conversation endpoints require JWT authentication via the `Authorization: Be
   userId: "user_456",
   title: "Q4 Planning Discussion",
   description: "Discussion about Q4 revenue targets",
-  folderIds: ["folder_789"],
+  
+  // Query Scope - what to search when user asks questions
+  folderIds: ["folder_finance", "folder_strategy"],  // Watch/smart folders
+  fileIds: ["doc_q3_report", "doc_budget_2024"],    // Specific files
+  
   messageCount: 12,
   totalTokens: 4500,
   lastMessageAt: "2024-11-05T10:30:00Z",
@@ -37,6 +83,13 @@ All conversation endpoints require JWT authentication via the `Authorization: Be
 }
 ```
 
+**Query Scope Explanation:**
+- `folderIds` - Watch folders or smart folders to include in queries
+- `fileIds` - Specific individual files to include in queries
+- Both are optional; empty means "search all accessible content"
+- When resuming a conversation, the UI can pre-populate these selections
+- User can still override per-message if needed
+
 ### Message Object
 ```javascript
 {
@@ -44,6 +97,12 @@ All conversation endpoints require JWT authentication via the `Authorization: Be
   conversationId: "conv_1730532342_abc123",
   role: "assistant", // "user" | "assistant" | "system"
   content: "Based on the documents...",
+  
+  // Who created this message (for collaborative conversations)
+  createdBy: "user_456",
+  createdByName: "Alice Smith",
+  createdByEmail: "alice@company.com",
+  
   tokens: 150,
   citedSources: [
     {
@@ -66,6 +125,11 @@ All conversation endpoints require JWT authentication via the `Authorization: Be
 }
 ```
 
+**Note on `createdBy`:** 
+- Automatically set to the authenticated user who adds the message
+- Essential for collaborative conversations to show who asked each question
+- Includes user name and email for easy identification in the UI
+
 ---
 
 ## 📡 API Endpoints
@@ -87,10 +151,18 @@ Content-Type: application/json
 {
   "title": "Q4 Planning",
   "description": "Discussion about Q4 strategy",
-  "folderIds": ["folder_456"],
+  "folderIds": ["folder_finance", "folder_strategy"],
+  "fileIds": ["doc_q3_report"],
   "metadata": {}
 }
 ```
+
+**Field Details:**
+- `title` (optional): Conversation title (default: "New Conversation")
+- `description` (optional): Description of conversation purpose
+- `folderIds` (optional): Array of watch/smart folder IDs to query (default: `[]`)
+- `fileIds` (optional): Array of specific file IDs to query (default: `[]`)
+- `metadata` (optional): Additional metadata (default: `{}`)
 
 **Response (201 Created):**
 ```json
@@ -102,7 +174,8 @@ Content-Type: application/json
     "userId": "user_456",
     "title": "Q4 Planning",
     "description": "Discussion about Q4 strategy",
-    "folderIds": ["folder_456"],
+    "folderIds": ["folder_finance", "folder_strategy"],
+    "fileIds": ["doc_q3_report"],
     "messageCount": 0,
     "createdAt": "2024-11-05T09:00:00Z"
   }
@@ -180,7 +253,8 @@ Authorization: Bearer <jwt_token>
     "userId": "user_456",
     "title": "Q4 Planning",
     "description": "Discussion about Q4 strategy",
-    "folderIds": ["folder_456"],
+    "folderIds": ["folder_finance", "folder_strategy"],
+    "fileIds": ["doc_q3_report"],
     "messageCount": 12,
     "totalTokens": 4500,
     "lastMessageAt": "2024-11-05T10:30:00Z",
@@ -217,10 +291,13 @@ Content-Type: application/json
   "title": "Q4 Planning (Updated)",
   "description": "Updated discussion",
   "archived": false,
-  "folderIds": ["folder_456", "folder_789"],
+  "folderIds": ["folder_finance", "folder_strategy", "folder_leadership"],
+  "fileIds": ["doc_q3_report", "doc_budget_2024", "doc_forecast"],
   "tags": ["planning", "finance", "q4"]
 }
 ```
+
+**Note:** You can update `folderIds` and `fileIds` to change the query scope for future messages in this conversation.
 
 **Response (200 OK):**
 ```json
@@ -499,17 +576,20 @@ Content-Type: application/json
 
 ## 🔄 Complete Workflow Example
 
-### 1. Create a new conversation
+### 1. Create a new conversation with query scope
 ```bash
 curl -X POST http://localhost:3000/api/orgs/org_123/conversations \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Product Launch Planning",
-    "folderIds": ["folder_marketing", "folder_product"]
+    "description": "Plan launch based on marketing docs and budget",
+    "folderIds": ["folder_marketing", "folder_product"],
+    "fileIds": ["doc_budget_2024", "doc_launch_strategy"]
   }'
 
 # Returns: { success: true, conversation: { conversationId: "conv_abc123", ... } }
+# Now all queries in this conversation will search these folders/files by default
 ```
 
 ### 2. Add user message
@@ -600,27 +680,314 @@ curl -X PUT http://localhost:3000/api/conversations/conv_abc123 \
 
 ---
 
+## 🤝 Collaborative Conversations
+
+With the `write` permission and `createdBy` tracking, multiple users can collaborate in the same conversation:
+
+### How It Works
+
+**Step 1: Alice creates & shares**
+```bash
+# Alice creates conversation
+POST /api/orgs/org_123/conversations
+{
+  "title": "Q4 Marketing Analysis",
+  "folderIds": ["folder_marketing"]
+}
+
+# Alice shares with Bob (write permission)
+POST /api/conversations/conv_abc/share
+{
+  "shareWith": "user_bob",
+  "shareType": "user", 
+  "permission": "write"
+}
+```
+
+**Step 2: Both add messages**
+```javascript
+// Alice asks:
+POST /api/conversations/conv_abc/messages
+{
+  "role": "user",
+  "content": "What was our Instagram ROI?"
+}
+// → created_by: "user_alice"
+
+// AI responds:
+POST /api/conversations/conv_abc/messages
+{
+  "role": "assistant",
+  "content": "Instagram ROI was 3.2x..."
+}
+// → created_by: "user_alice" (same user who asked)
+
+// Bob asks:
+POST /api/conversations/conv_abc/messages  
+{
+  "role": "user",
+  "content": "What about Facebook?"
+}
+// → created_by: "user_bob"
+
+// AI responds:
+POST /api/conversations/conv_abc/messages
+{
+  "role": "assistant",  
+  "content": "Facebook ROI was 2.1x..."
+}
+// → created_by: "user_bob" (same user who asked)
+```
+
+**Step 3: View thread**
+```javascript
+GET /api/conversations/conv_abc/messages
+
+Response:
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What was our Instagram ROI?",
+      "createdBy": "user_alice",
+      "createdByName": "Alice Smith",
+      "createdAt": "2024-11-05T10:00:00Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Instagram ROI was 3.2x...",
+      "createdBy": "user_alice",  // AI response to Alice's question
+      "createdAt": "2024-11-05T10:00:05Z"
+    },
+    {
+      "role": "user",
+      "content": "What about Facebook?",
+      "createdBy": "user_bob",
+      "createdByName": "Bob Johnson",
+      "createdAt": "2024-11-05T10:02:00Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Facebook ROI was 2.1x...",
+      "createdBy": "user_bob",  // AI response to Bob's question
+      "createdAt": "2024-11-05T10:02:05Z"
+    }
+  ]
+}
+```
+
+### UI Display Example
+```
+🗨️ Q4 Marketing Analysis
+   📁 Marketing (query scope)
+
+   Alice Smith • 10:00 AM
+   What was our Instagram ROI?
+   
+   🤖 Assistant • 10:00 AM
+   Instagram ROI was 3.2x...
+   
+   Bob Johnson • 10:02 AM
+   What about Facebook?
+   
+   🤖 Assistant • 10:02 AM
+   Facebook ROI was 2.1x...
+```
+
+### Benefits
+✅ **Clear attribution** - See who asked each question  
+✅ **Shared context** - Both users see full conversation  
+✅ **Collaborative research** - Multiple perspectives in one thread  
+✅ **Audit trail** - Track who contributed what  
+
+### When to Use Write vs Read
+
+**Write Permission** (collaborative):
+- Team brainstorming sessions
+- Multiple analysts researching same topic
+- Manager and team member co-investigating
+- Both need to ask follow-up questions
+- **Can update query scope** (folderIds/fileIds) mid-conversation
+
+**Read Permission** (reference):
+- "FYI, here's what I learned"
+- Historical reference / knowledge base
+- Compliance audit records
+- One-way information sharing
+
+---
+
+## 👥 Conversation-Level Collaboration
+
+Beyond messages, the **conversation object itself** supports collaboration:
+
+### What Can Write Users Do?
+
+**Owner (Alice)**:
+- ✅ Update title, description
+- ✅ Archive conversation
+- ✅ Update query scope (folderIds, fileIds)
+- ✅ Add/edit tags
+- ✅ Share/unshare conversation
+- ✅ Delete conversation
+- ✅ Add messages
+
+**Write User (Bob)**:
+- ✅ **Update query scope** (folderIds, fileIds)
+- ✅ Add messages
+- ❌ Cannot update title/description
+- ❌ Cannot archive
+- ❌ Cannot update tags
+- ❌ Cannot share with others
+- ❌ Cannot delete
+
+**Read User (Carol)**:
+- ✅ View conversation and messages
+- ❌ Cannot modify anything
+
+### Participant Tracking
+
+The system automatically tracks who's actively participating:
+
+**Example Response** from `GET /api/conversations/conv_123`:
+```json
+{
+  "conversation": {
+    "conversationId": "conv_123",
+    "title": "Q4 Marketing Analysis",
+    "userId": "user_alice",  // Owner
+    "folderIds": ["folder_marketing", "folder_sales"],
+    "participants": [
+      {
+        "userId": "user_alice",
+        "name": "Alice Smith",
+        "email": "alice@company.com",
+        "messageCount": 8,
+        "firstMessageAt": "2024-11-05T10:00:00Z",
+        "lastMessageAt": "2024-11-05T10:45:00Z"
+      },
+      {
+        "userId": "user_bob",
+        "name": "Bob Johnson",
+        "email": "bob@company.com",
+        "messageCount": 5,
+        "firstMessageAt": "2024-11-05T10:15:00Z",
+        "lastMessageAt": "2024-11-05T10:50:00Z"
+      }
+    ]
+  }
+}
+```
+
+### Collaborative Scope Updates
+
+**Scenario:** Bob realizes they need more data sources
+
+```bash
+# Bob (with write permission) updates query scope
+PUT /api/conversations/conv_123
+{
+  "folderIds": ["folder_marketing", "folder_sales", "folder_finance"],
+  "fileIds": ["doc_budget", "doc_forecast"]
+}
+
+# ✅ Success! Now all future messages search these folders/files
+```
+
+**UI Display:**
+```
+🗨️ Q4 Marketing Analysis
+   Owner: Alice Smith
+   👥 Active: Alice (8 messages), Bob (5 messages)
+   
+   📁 Searching: Marketing, Sales, Finance
+   📄 Files: budget.xlsx, forecast.pdf
+   
+   [Bob just added Finance folder]  ← Activity indicator
+```
+
+### Activity Log (Optional Enhancement)
+
+You could track scope changes:
+```json
+{
+  "activityLog": [
+    {
+      "action": "created",
+      "userId": "user_alice",
+      "timestamp": "2024-11-05T10:00:00Z"
+    },
+    {
+      "action": "shared_with_write",
+      "userId": "user_alice",
+      "sharedWith": "user_bob",
+      "timestamp": "2024-11-05T10:05:00Z"
+    },
+    {
+      "action": "updated_scope",
+      "userId": "user_bob",
+      "changes": {
+        "added_folders": ["folder_finance"],
+        "added_files": ["doc_budget", "doc_forecast"]
+      },
+      "timestamp": "2024-11-05T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ## 📊 Use Cases
 
-### 1. Personal Knowledge Base
-- Create conversation per topic
-- Link to relevant folders
-- Build searchable Q&A history
+### 1. Scoped Conversations with Query Context
+**Problem:** Users want to have focused conversations about specific topics without manually selecting folders/files every time.
 
-### 2. Team Collaboration
+**Solution:** Set `folderIds` and `fileIds` when creating a conversation:
+```javascript
+{
+  title: "Q4 Financial Review",
+  folderIds: ["folder_finance", "folder_reports"],
+  fileIds: ["doc_q3_summary", "doc_budget_forecast"]
+}
+```
+
+**Benefits:**
+- UI can auto-scope queries to these folders/files
+- User doesn't repeat selections for each message
+- Conversation "remembers" its context
+- Can be updated mid-conversation if scope changes
+
+**Example UX Flow:**
+1. User creates conversation: "Q4 Financial Review"
+2. Selects Finance folder + Q3 report file
+3. Every message automatically searches those sources
+4. UI shows active scope: "📁 Finance, 📄 Q3 Report"
+5. User can add/remove folders during conversation
+
+### 2. Personal Knowledge Base
+- Create conversation per topic
+- Link to relevant folders/files
+- Build searchable Q&A history
+- Each conversation has its own context
+
+### 3. Team Collaboration
 - Share important conversations with team
-- Collaborative research and analysis
+- Include the folder/file scope
+- Team members can see what was searched
 - Reference shared conversations in discussions
 
-### 3. Audit & Compliance
+### 4. Audit & Compliance
 - Complete message history
-- Source citation tracking
+- Source citation tracking (actual vectors used)
 - Token usage monitoring
+- Query scope tracking (intended folders/files)
 
-### 4. Knowledge Management
+### 5. Knowledge Management
 - Tag conversations by topic/project
 - Archive completed projects
 - Search and retrieve past insights
+- Filter conversations by folder scope
 
 ---
 
@@ -737,7 +1104,8 @@ CREATE TABLE conversations (
     user_id VARCHAR(255) NOT NULL,
     title VARCHAR(500),
     description TEXT,
-    folder_ids JSON DEFAULT '[]',
+    folder_ids JSON DEFAULT '[]',  -- Watch/smart folders to query
+    file_ids JSON DEFAULT '[]',     -- Specific files to query
     message_count INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
     last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -752,6 +1120,7 @@ CREATE TABLE messages (
     conversation_id VARCHAR(255) NOT NULL,
     role ENUM('user', 'assistant', 'system') NOT NULL,
     content TEXT NOT NULL,
+    created_by VARCHAR(255),  -- User who created this message (for collaboration)
     tokens INT DEFAULT 0,
     cited_sources JSON DEFAULT '[]',
     context_used JSON DEFAULT '[]',

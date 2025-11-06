@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     user_id VARCHAR(255) NOT NULL,
     title VARCHAR(500),
     description TEXT,
-    folder_ids JSON DEFAULT '[]',  -- Folders used in this conversation
+    folder_ids JSON DEFAULT '[]',  -- Watch/smart folders to query
+    file_ids JSON DEFAULT '[]',     -- Specific files to query
     message_count INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
     last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS messages (
     conversation_id VARCHAR(255) NOT NULL,
     role ENUM('user', 'assistant', 'system') NOT NULL,
     content TEXT NOT NULL,
+    created_by VARCHAR(255),  -- User who created this message (for collaborative conversations)
     tokens INT DEFAULT 0,
     cited_sources JSON DEFAULT '[]',  -- Array of source references
     context_used JSON DEFAULT '[]',   -- Vector matches used
@@ -43,7 +45,9 @@ CREATE TABLE IF NOT EXISTS messages (
     metadata JSON DEFAULT '{}',
     INDEX idx_msg_conv (conversation_id, created_at),
     INDEX idx_msg_created (created_at),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+    INDEX idx_msg_user (created_by, created_at),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Conversation Sharing: Share conversations with teams or specific users
@@ -70,6 +74,21 @@ CREATE TABLE IF NOT EXISTS conversation_tags (
     INDEX idx_tag_conv (conversation_id),
     INDEX idx_tag_name (tag),
     FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Conversation Participants: Track active users in collaborative conversations
+CREATE TABLE IF NOT EXISTS conversation_participants (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    message_count INT DEFAULT 0,
+    UNIQUE KEY unique_participant (conversation_id, user_id),
+    INDEX idx_participant_conv (conversation_id),
+    INDEX idx_participant_user (user_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- View: Conversation access with sharing info

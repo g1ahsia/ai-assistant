@@ -1284,15 +1284,15 @@ app.post('/delete-vectors', authenticateToken, async (req, res) => {
 app.post('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
   const { userId } = req.user;
-  const { title, description, folderIds = [], metadata = {} } = req.body;
+  const { title, description, folderIds = [], fileIds = [], metadata = {} } = req.body;
 
   const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   try {
     await pool.query(
-      `INSERT INTO conversations (conversation_id, org_id, user_id, title, description, folder_ids, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [conversationId, orgId, userId, title || 'New Conversation', description, JSON.stringify(folderIds), JSON.stringify(metadata)]
+      `INSERT INTO conversations (conversation_id, org_id, user_id, title, description, folder_ids, file_ids, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [conversationId, orgId, userId, title || 'New Conversation', description, JSON.stringify(folderIds), JSON.stringify(fileIds), JSON.stringify(metadata)]
     );
 
     res.status(201).json({
@@ -1304,6 +1304,7 @@ app.post('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembershi
         title: title || 'New Conversation',
         description,
         folderIds,
+        fileIds,
         messageCount: 0,
         createdAt: new Date().toISOString(),
       },
@@ -1398,6 +1399,16 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
       [conversationId]
     );
 
+    // Get participants (for collaborative conversations)
+    const [participants] = await pool.query(
+      `SELECT cp.user_id, u.name, u.email, cp.message_count, cp.first_message_at, cp.last_message_at
+       FROM conversation_participants cp
+       JOIN users u ON cp.user_id = u.user_id
+       WHERE cp.conversation_id = ?
+       ORDER BY cp.first_message_at ASC`,
+      [conversationId]
+    );
+
     res.json({
       success: true,
       conversation: {
@@ -1407,6 +1418,7 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
         title: conversation.title,
         description: conversation.description,
         folderIds: JSON.parse(conversation.folder_ids || '[]'),
+        fileIds: JSON.parse(conversation.file_ids || '[]'),
         messageCount: conversation.message_count,
         totalTokens: conversation.total_tokens,
         lastMessageAt: conversation.last_message_at,
@@ -1415,6 +1427,14 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
         isOwner: conversation.is_owner === 1,
         permission: conversation.shared_permission || 'owner',
         tags: tags.map(t => t.tag),
+        participants: participants.map(p => ({
+          userId: p.user_id,
+          name: p.name,
+          email: p.email,
+          messageCount: p.message_count,
+          firstMessageAt: p.first_message_at,
+          lastMessageAt: p.last_message_at
+        })),
         metadata: JSON.parse(conversation.metadata || '{}'),
       },
     });
@@ -1431,21 +1451,38 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
 app.put('/api/conversations/:conversationId', authenticateToken, async (req, res) => {
   const { conversationId } = req.params;
   const { userId } = req.user;
-  const { title, description, archived, folderIds, tags } = req.body;
+  const { title, description, archived, folderIds, fileIds, tags } = req.body;
 
   try {
-    // Verify ownership
-    const [conversations] = await pool.query(
-      'SELECT user_id FROM conversations WHERE conversation_id = ?',
-      [conversationId]
+    // Check user's permission level (owner or write access)
+    const [access] = await pool.query(
+      `SELECT c.user_id,
+              cs.permission,
+              tm.user_id as team_member
+       FROM conversations c
+       LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+       LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id AND tm.user_id = ?
+       WHERE c.conversation_id = ?
+         AND (c.user_id = ? OR cs.shared_with_id = ? OR tm.user_id = ?)
+       LIMIT 1`,
+      [userId, conversationId, userId, userId, userId]
     );
 
-    if (conversations.length === 0) {
+    if (access.length === 0) {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    if (conversations[0].user_id !== userId) {
-      return res.status(403).json({ error: 'Only owner can update conversation' });
+    const isOwner = access[0].user_id === userId;
+    const hasWriteAccess = access[0].permission === 'write' || access[0].team_member;
+
+    // Only owner can update title, description, archived, tags
+    if (!isOwner && (title !== undefined || description !== undefined || archived !== undefined || tags !== undefined)) {
+      return res.status(403).json({ error: 'Only owner can update conversation metadata (title, description, archive, tags)' });
+    }
+
+    // Both owner and write users can update folderIds/fileIds (query scope)
+    if (!isOwner && !hasWriteAccess && (folderIds !== undefined || fileIds !== undefined)) {
+      return res.status(403).json({ error: 'Need write permission to update query scope' });
     }
 
     // Build update query
@@ -1467,6 +1504,10 @@ app.put('/api/conversations/:conversationId', authenticateToken, async (req, res
     if (folderIds !== undefined) {
       updates.push('folder_ids = ?');
       values.push(JSON.stringify(folderIds));
+    }
+    if (fileIds !== undefined) {
+      updates.push('file_ids = ?');
+      values.push(JSON.stringify(fileIds));
     }
 
     if (updates.length > 0) {
@@ -1566,11 +1607,11 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
       return res.status(404).json({ error: 'Conversation not found or access denied' });
     }
 
-    // Insert message
+    // Insert message with created_by
     await pool.query(
-      `INSERT INTO messages (message_id, conversation_id, role, content, tokens, cited_sources, context_used, model, temperature, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [messageId, conversationId, role, content, tokens, JSON.stringify(citedSources), JSON.stringify(contextUsed), model, temperature, JSON.stringify(metadata)]
+      `INSERT INTO messages (message_id, conversation_id, role, content, created_by, tokens, cited_sources, context_used, model, temperature, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [messageId, conversationId, role, content, userId, tokens, JSON.stringify(citedSources), JSON.stringify(contextUsed), model, temperature, JSON.stringify(metadata)]
     );
 
     // Update conversation stats
@@ -1581,6 +1622,16 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
            last_message_at = NOW()
        WHERE conversation_id = ?`,
       [tokens, conversationId]
+    );
+
+    // Track participant (for collaborative conversations)
+    await pool.query(
+      `INSERT INTO conversation_participants (conversation_id, user_id, first_message_at, last_message_at, message_count)
+       VALUES (?, ?, NOW(), NOW(), 1)
+       ON DUPLICATE KEY UPDATE 
+         last_message_at = NOW(),
+         message_count = message_count + 1`,
+      [conversationId, userId]
     );
 
     res.status(201).json({
@@ -1626,11 +1677,13 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
       return res.status(404).json({ error: 'Conversation not found or access denied' });
     }
 
-    // Get messages
+    // Get messages with user info for collaborative conversations
     const [messages] = await pool.query(
-      `SELECT * FROM messages 
-       WHERE conversation_id = ?
-       ORDER BY created_at ASC
+      `SELECT m.*, u.name as created_by_name, u.email as created_by_email
+       FROM messages m
+       LEFT JOIN users u ON m.created_by = u.user_id
+       WHERE m.conversation_id = ?
+       ORDER BY m.created_at ASC
        LIMIT ? OFFSET ?`,
       [conversationId, parseInt(limit), parseInt(offset)]
     );
@@ -1641,6 +1694,9 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
         messageId: m.message_id,
         role: m.role,
         content: m.content,
+        createdBy: m.created_by,
+        createdByName: m.created_by_name,
+        createdByEmail: m.created_by_email,
         tokens: m.tokens,
         citedSources: JSON.parse(m.cited_sources || '[]'),
         contextUsed: JSON.parse(m.context_used || '[]'),

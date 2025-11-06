@@ -124,10 +124,12 @@ A complete enterprise multi-tenant document management and AI chat system with:
 - Save complete message history (user, assistant, system)
 - Track tokens, sources, and context per message
 - Share conversations with teams, users, or entire org
+- **Collaborative conversations** - Multiple users can add messages with full attribution
 - Tag and categorize conversations
 - Archive and search conversation history
-- Link conversations to specific folders
+- Link conversations to specific folders (watch folders + specific files)
 - Full ACL enforcement (owner, shared, team-based)
+- Per-message `created_by` tracking for collaboration
 
 ### 8. Documentation
 **`README-ENTERPRISE.md`** (680 lines)
@@ -221,7 +223,11 @@ space_<spaceId> # Cross-org collaboration (optional)
   user_id: "user_456",
   title: "Q4 Planning Discussion",
   description: "Discussion about Q4 revenue targets",
-  folder_ids: ["folder_789"],  // Linked folders
+  
+  // Query scope - what to search when user asks questions
+  folder_ids: ["folder_finance", "folder_strategy"],  // Watch/smart folders
+  file_ids: ["doc_q3_report", "doc_budget_2024"],    // Specific files
+  
   message_count: 12,
   total_tokens: 4500,
   last_message_at: "2024-11-05T10:30:00Z",
@@ -236,6 +242,7 @@ space_<spaceId> # Cross-org collaboration (optional)
   conversation_id: "conv_1730532342_abc123",
   role: "assistant",  // user | assistant | system
   content: "Based on the documents...",
+  created_by: "user_456",  // Who created this message (for collaboration)
   tokens: 150,
   cited_sources: [
     {
@@ -316,28 +323,39 @@ User creates conversation
 1. Create conversation record
    - Auto-generate conversation_id
    - Link to org & user
-   - Optional folder associations
+   - Set query scope:
+     * folderIds: Watch/smart folders to search
+     * fileIds: Specific files to search
+   - Optional: Empty means "search all accessible"
     ↓
 2. Add messages as chat progresses
    - User messages (queries)
    - Assistant messages (responses)
    - System messages (notifications)
+   - Each message uses conversation's scope by default
+   - Can override per-message if needed
     ↓
 3. Track metadata per message
    - Token usage
-   - Source citations (vectors used)
+   - Source citations (actual vectors used)
    - Context chunks
    - Model & temperature
     ↓
-4. Share conversation (optional)
+4. Update scope mid-conversation (optional)
+   - Add/remove folders or files
+   - UI reflects new scope
+   - Future messages use updated scope
+    ↓
+5. Share conversation (optional)
    - With specific users
    - With teams
    - With entire org
+   - Shared users see the scope too
     ↓
-5. Organize & manage
+6. Organize & manage
    - Add tags for categorization
    - Archive old conversations
-   - Search by title/tags
+   - Search by title/tags/scope
    - Full history preserved
 ```
 
@@ -490,9 +508,11 @@ curl -X POST http://localhost:3000/api/orgs/org_123/conversations \
   -d '{
     "title": "Q4 Planning",
     "description": "Discussion about Q4 strategy",
-    "folderIds": ["folder_456"]
+    "folderIds": ["folder_finance", "folder_strategy"],
+    "fileIds": ["doc_q3_report", "doc_budget_2024"]
   }'
 # Returns: { success: true, conversation: {...} }
+# All messages in this conversation will query these folders/files by default
 ```
 
 #### Add Messages to Conversation
