@@ -958,6 +958,7 @@ app.get('/api/folders/:folderId/sharing', authenticateToken, async (req, res) =>
 /**
  * POST /api/orgs/:orgId/chat
  * Query organization documents and generate AI response
+ * Optionally saves messages to conversation if conversationId is provided
  */
 app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
@@ -968,6 +969,7 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
     answerMode = 'precise',
     folderIds = [],
     additionalFilters = {},
+    conversationId = null,  // New: optional conversation ID
   } = req.body;
 
   if (!query) {
@@ -975,6 +977,45 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
   }
 
   try {
+    // Step 1: If conversationId provided, verify access and save user message
+    let userMessageId = null;
+    if (conversationId) {
+      // Verify user has access to this conversation
+      const [conversations] = await pool.query(
+        `SELECT c.conversation_id
+         FROM conversations c
+         LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+         LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id
+         WHERE c.conversation_id = ?
+           AND (c.user_id = ? OR tm.user_id = ? OR cs.shared_with_type = 'org')
+         LIMIT 1`,
+        [conversationId, userId, userId]
+      );
+
+      if (conversations.length === 0) {
+        return res.status(403).json({ error: 'No access to this conversation' });
+      }
+
+      // Save user message
+      userMessageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await pool.query(
+        `INSERT INTO messages (message_id, conversation_id, role, content, created_by, tokens)
+         VALUES (?, ?, 'user', ?, ?, ?)`,
+        [userMessageId, conversationId, query, userId, 0]
+      );
+
+      // Update participant tracking
+      await pool.query(
+        `INSERT INTO conversation_participants (conversation_id, user_id, first_message_at, last_message_at, message_count)
+         VALUES (?, ?, NOW(), NOW(), 1)
+         ON DUPLICATE KEY UPDATE 
+           last_message_at = NOW(),
+           message_count = message_count + 1`,
+        [conversationId, userId]
+      );
+    }
+
+    // Step 2: Generate AI response
     const result = await chatbotClient.generateResponse(
       pool,
       orgId,
@@ -984,11 +1025,70 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
       { answerMode, folderIds, additionalFilters }
     );
 
+    // Step 3: If conversationId provided, save assistant message
+    let assistantMessageId = null;
+    if (conversationId) {
+      assistantMessageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Calculate rough token count (approximation)
+      const tokenCount = Math.ceil(result.aiResponse.length / 4);
+      
+      // Map cited source IDs to full source objects from context
+      const citedSourceObjects = [];
+      if (result.citedSources && result.citedSources.length > 0 && result.context) {
+        result.citedSources.forEach(sourceId => {
+          const sourceObj = result.context.find(c => c.id === sourceId);
+          if (sourceObj) {
+            citedSourceObjects.push({
+              id: sourceObj.id,
+              score: sourceObj.score,
+              text: sourceObj.text,
+              metadata: sourceObj.metadata
+            });
+          }
+        });
+      }
+      
+      await pool.query(
+        `INSERT INTO messages (message_id, conversation_id, role, content, created_by, tokens, cited_sources, context_used, model)
+         VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?, ?)`,
+        [
+          assistantMessageId, 
+          conversationId, 
+          result.aiResponse, 
+          userId,  // AI response attributed to the user who asked
+          tokenCount,
+          JSON.stringify(citedSourceObjects),
+          JSON.stringify(result.context || []),
+          'gpt-4'  // Update with actual model if available
+        ]
+      );
+
+      // Update conversation stats
+      await pool.query(
+        `UPDATE conversations 
+         SET message_count = message_count + 2,
+             total_tokens = total_tokens + ?,
+             last_message_at = NOW()
+         WHERE conversation_id = ?`,
+        [tokenCount, conversationId]
+      );
+    }
+
     res.json({
       success: true,
       response: result.aiResponse,
       citedSources: result.citedSources,
       context: result.context,
+      // Include conversation info if messages were saved
+      ...(conversationId && {
+        conversation: {
+          conversationId,
+          userMessageId,
+          assistantMessageId,
+          messagesSaved: true
+        }
+      })
     });
   } catch (error) {
     console.error('Error generating response:', error);
@@ -1292,7 +1392,16 @@ app.post('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembershi
     await pool.query(
       `INSERT INTO conversations (conversation_id, org_id, user_id, title, description, folder_ids, file_ids, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [conversationId, orgId, userId, title || 'New Conversation', description, JSON.stringify(folderIds), JSON.stringify(fileIds), JSON.stringify(metadata)]
+      [
+        conversationId, 
+        orgId, 
+        userId, 
+        title || 'New Conversation', 
+        description, 
+        JSON.stringify(folderIds || []), 
+        JSON.stringify(fileIds || []), 
+        JSON.stringify(metadata || {})
+      ]
     );
 
     res.status(201).json({
@@ -1409,6 +1518,17 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
       [conversationId]
     );
 
+    // Helper function to safely parse JSON
+    const safeJSONParse = (value, defaultValue = null) => {
+      if (!value || value === '' || value === 'null') return defaultValue;
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        console.error('Failed to parse JSON:', value, e.message);
+        return defaultValue;
+      }
+    };
+
     res.json({
       success: true,
       conversation: {
@@ -1417,8 +1537,8 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
         userId: conversation.user_id,
         title: conversation.title,
         description: conversation.description,
-        folderIds: JSON.parse(conversation.folder_ids || '[]'),
-        fileIds: JSON.parse(conversation.file_ids || '[]'),
+        folderIds: safeJSONParse(conversation.folder_ids, []),
+        fileIds: safeJSONParse(conversation.file_ids, []),
         messageCount: conversation.message_count,
         totalTokens: conversation.total_tokens,
         lastMessageAt: conversation.last_message_at,
@@ -1435,7 +1555,7 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
           firstMessageAt: p.first_message_at,
           lastMessageAt: p.last_message_at
         })),
-        metadata: JSON.parse(conversation.metadata || '{}'),
+        metadata: safeJSONParse(conversation.metadata, {}),
       },
     });
   } catch (error) {
@@ -1611,7 +1731,19 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
     await pool.query(
       `INSERT INTO messages (message_id, conversation_id, role, content, created_by, tokens, cited_sources, context_used, model, temperature, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [messageId, conversationId, role, content, userId, tokens, JSON.stringify(citedSources), JSON.stringify(contextUsed), model, temperature, JSON.stringify(metadata)]
+      [
+        messageId, 
+        conversationId, 
+        role, 
+        content, 
+        userId, 
+        tokens, 
+        JSON.stringify(citedSources || []), 
+        JSON.stringify(contextUsed || []), 
+        model, 
+        temperature, 
+        JSON.stringify(metadata || {})
+      ]
     );
 
     // Update conversation stats
@@ -1688,6 +1820,17 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
       [conversationId, parseInt(limit), parseInt(offset)]
     );
 
+    // Helper function to safely parse JSON
+    const safeJSONParse = (value, defaultValue = null) => {
+      if (!value || value === '' || value === 'null') return defaultValue;
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        console.error('Failed to parse JSON:', value, e.message);
+        return defaultValue;
+      }
+    };
+
     res.json({
       success: true,
       messages: messages.map(m => ({
@@ -1698,12 +1841,12 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
         createdByName: m.created_by_name,
         createdByEmail: m.created_by_email,
         tokens: m.tokens,
-        citedSources: JSON.parse(m.cited_sources || '[]'),
-        contextUsed: JSON.parse(m.context_used || '[]'),
+        citedSources: safeJSONParse(m.cited_sources, []),
+        contextUsed: safeJSONParse(m.context_used, []),
         model: m.model,
         temperature: m.temperature,
         createdAt: m.created_at,
-        metadata: JSON.parse(m.metadata || '{}'),
+        metadata: safeJSONParse(m.metadata, {}),
       })),
       pagination: {
         limit: parseInt(limit),

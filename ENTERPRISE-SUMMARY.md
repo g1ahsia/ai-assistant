@@ -112,12 +112,105 @@ A complete enterprise multi-tenant document management and AI chat system with:
 - Role-based access control
 
 ### 7. Conversation Management System
+
 **Database Tables:**
 - `conversations` - Chat sessions with metadata
 - `messages` - Individual messages within conversations
 - `conversation_shares` - Share conversations with teams/users/org
 - `conversation_tags` - Tag organization for conversations
+- `conversation_participants` - Track active users in collaborative conversations
 - `conversation_access` (view) - Unified access view
+
+**Table Schemas:**
+
+```sql
+-- Conversations: Individual chat sessions
+CREATE TABLE conversations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id VARCHAR(255) UNIQUE NOT NULL,
+    org_id VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    title VARCHAR(500),
+    description TEXT,
+    folder_ids JSON DEFAULT '[]',  -- Watch/smart folders to query
+    file_ids JSON DEFAULT '[]',     -- Specific files to query
+    message_count INT DEFAULT 0,
+    total_tokens INT DEFAULT 0,
+    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    archived BOOLEAN DEFAULT FALSE,
+    metadata JSON DEFAULT '{}',
+    INDEX idx_conv_org_user (org_id, user_id),
+    INDEX idx_conv_user_updated (user_id, updated_at DESC),
+    INDEX idx_conv_archived (archived, updated_at DESC),
+    FOREIGN KEY (org_id) REFERENCES orgs(org_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- Messages: Individual messages within conversations
+CREATE TABLE messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    message_id VARCHAR(255) UNIQUE NOT NULL,
+    conversation_id VARCHAR(255) NOT NULL,
+    role ENUM('user', 'assistant', 'system') NOT NULL,
+    content TEXT NOT NULL,
+    created_by VARCHAR(255),  -- User who created this message
+    tokens INT DEFAULT 0,
+    cited_sources JSON DEFAULT '[]',
+    context_used JSON DEFAULT '[]',
+    model VARCHAR(100),
+    temperature DECIMAL(3,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    metadata JSON DEFAULT '{}',
+    INDEX idx_msg_conv (conversation_id, created_at),
+    INDEX idx_msg_created (created_at),
+    INDEX idx_msg_user (created_by, created_at),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
+-- Conversation Sharing: Share conversations with teams/users
+CREATE TABLE conversation_shares (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id VARCHAR(255) NOT NULL,
+    shared_with_type ENUM('user', 'team', 'org') NOT NULL,
+    shared_with_id VARCHAR(255) NOT NULL,
+    permission ENUM('read', 'write') DEFAULT 'read',
+    shared_by VARCHAR(255) NOT NULL,
+    shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_share_conv (conversation_id),
+    INDEX idx_share_target (shared_with_type, shared_with_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (shared_by) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- Conversation Tags: Organize conversations
+CREATE TABLE conversation_tags (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id VARCHAR(255) NOT NULL,
+    tag VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tag_conv (conversation_id),
+    INDEX idx_tag_name (tag),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+);
+
+-- Conversation Participants: Track active users
+CREATE TABLE conversation_participants (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    message_count INT DEFAULT 0,
+    UNIQUE KEY unique_participant (conversation_id, user_id),
+    INDEX idx_participant_conv (conversation_id),
+    INDEX idx_participant_user (user_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+```
 
 **Features:**
 - Create and manage chat conversations
@@ -125,11 +218,13 @@ A complete enterprise multi-tenant document management and AI chat system with:
 - Track tokens, sources, and context per message
 - Share conversations with teams, users, or entire org
 - **Collaborative conversations** - Multiple users can add messages with full attribution
+- **Automatic participant tracking** - System tracks who's active in each conversation
 - Tag and categorize conversations
 - Archive and search conversation history
 - Link conversations to specific folders (watch folders + specific files)
 - Full ACL enforcement (owner, shared, team-based)
 - Per-message `created_by` tracking for collaboration
+- Write users can update query scope (folderIds/fileIds)
 
 ### 8. Documentation
 **`README-ENTERPRISE.md`** (680 lines)

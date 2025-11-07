@@ -218,15 +218,15 @@ CREATE TABLE IF NOT EXISTS conversations (
     user_id VARCHAR(255) NOT NULL,
     title VARCHAR(500),
     description TEXT,
-    folder_ids JSON DEFAULT '[]',  -- Watch/smart folders to query
-    file_ids JSON DEFAULT '[]',     -- Specific files to query
+    folder_ids JSON,  -- Watch/smart folders to query
+    file_ids JSON,     -- Specific files to query
     message_count INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
     last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     archived BOOLEAN DEFAULT FALSE,
-    metadata JSON DEFAULT '{}',
+    metadata JSON,
     INDEX idx_conv_org_user (org_id, user_id),
     INDEX idx_conv_user_updated (user_id, updated_at DESC),
     INDEX idx_conv_archived (archived, updated_at DESC),
@@ -243,12 +243,12 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     created_by VARCHAR(255),  -- User who created this message (for collaborative conversations)
     tokens INT DEFAULT 0,
-    cited_sources JSON DEFAULT '[]',  -- Array of source references
-    context_used JSON DEFAULT '[]',   -- Vector matches used
+    cited_sources JSON,  -- Array of source references
+    context_used JSON,   -- Vector matches used
     model VARCHAR(100),
     temperature DECIMAL(3,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    metadata JSON DEFAULT '{}',
+    metadata JSON,
     INDEX idx_msg_conv (conversation_id, created_at),
     INDEX idx_msg_created (created_at),
     INDEX idx_msg_user (created_by, created_at),
