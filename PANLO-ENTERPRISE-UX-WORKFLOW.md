@@ -272,7 +272,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ---
 
-#### **Screen 6: Chat Conversation**
+#### **Screen 6: Active Chat**
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Panlo                                                   [⚙️Settings] [📊]│
@@ -313,7 +313,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 ```
 
 **Features:**
-- Clean conversation flow
+- Clean chat flow
 - Automatic source citations
 - Quick actions (Add Context, Copy, Share)
 - Contextual search based on selected folder in left panel
@@ -797,7 +797,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 3. Press Enter or click ➤
 4. AI processes with ACL filters automatically
 5. Answer displayed with source citations
-6. Ask follow-up questions in same conversation
+6. Ask follow-up questions in same chat
 ```
 
 ### Workflow 3: Share Folder with Team
@@ -1311,7 +1311,7 @@ Toggle Sidebar                  ⌘B
 | **3** | Organization Selector | Choose/create organization | `GET /api/auth/me`<br>`POST /api/orgs` |
 | **4** | Create New Organization | Organization setup | `POST /api/orgs` |
 | **5** | Main Chat Interface | Primary application view | `POST /api/orgs/{orgId}/chat` |
-| **6** | Chat Conversation | Active conversation view | `POST /api/orgs/{orgId}/chat` |
+| **6** | Active Chat | Active chat view | `POST /api/orgs/{orgId}/chat` |
 | **7** | Add Watch Folder | Folder selection & setup | `POST /api/orgs/{orgId}/folders` |
 | **8** | Folder Context Menu | Right-click folder actions | `POST /api/folders/{folderId}/share` |
 | **9** | Settings Modal | Main settings navigation | - |
@@ -1361,7 +1361,7 @@ Toggle Sidebar                  ⌘B
 │  ├─ Desktop Notifications Toggle
 │  ├─ Folder Events
 │  ├─ Team & Collaboration
-│  ├─ Chat & AI Assistant
+│  ├─ Chats & AI Assistant
 │  ├─ System Alerts
 │  ├─ Display Duration
 │  └─ Do Not Disturb Mode

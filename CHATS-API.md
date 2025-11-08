@@ -1,30 +1,30 @@
-# Conversation Management API Reference
+# Chat Management API Reference
 
 ## Overview
 
-The Conversation Management system enables users to:
-- Create and manage chat conversations
+The Chat Management system enables users to:
+- Create and manage chats
 - Store complete message history
 - Track token usage and source citations
-- Share conversations with teams, users, or entire organizations
-- Organize conversations with tags and archival
-- Link conversations to specific folders
+- Share chats with teams, users, or entire organizations
+- Organize chats with tags and archival
+- Link chats to specific folders
 
-All conversation endpoints require JWT authentication via the `Authorization: Bearer <token>` header.
+All chat endpoints require JWT authentication via the `Authorization: Bearer <token>` header.
 
 ---
 
 ## 💡 Why Store Folder & File IDs?
 
-**The Problem:** Users want focused conversations without repeatedly selecting which folders/files to search.
+**The Problem:** Users want focused chats without repeatedly selecting which folders/files to search.
 
-**The Solution:** Each conversation can store its "query scope":
+**The Solution:** Each chat can store its "query scope":
 - **`folderIds`** - Watch folders or smart folders to include
 - **`fileIds`** - Specific individual files to include
 
 **How It Works:**
 
-1. **User creates conversation** and selects scope:
+1. **User creates chat** and selects scope:
    ```
    "Marketing Q4" → Searches: Marketing folder + Budget file
    ```
@@ -34,7 +34,7 @@ All conversation endpoints require JWT authentication via the `Authorization: Be
    - System searches: Marketing folder + Budget file ✓
    - No need to re-select each time!
 
-3. **Scope can be updated mid-conversation:**
+3. **Scope can be updated mid-chat:**
    - User adds "Finance" folder
    - Future messages now search: Marketing + Finance + Budget
 
@@ -49,7 +49,7 @@ All conversation endpoints require JWT authentication via the `Authorization: Be
    - Just a convenience, not a restriction
 
 **Real vs. Intended Sources:**
-- `folderIds/fileIds` = what user *wants* to search (stored in conversation)
+- `folderIds/fileIds` = what user *wants* to search (stored in chat)
 - `cited_sources` = what AI *actually* used (stored per message)
 
 Both are useful for different purposes!
@@ -61,7 +61,7 @@ Both are useful for different purposes!
 ### Conversation Object
 ```javascript
 {
-  conversationId: "conv_1730532342_abc123",
+  chatId: "chat_1730532342_abc123",
   orgId: "org_123",
   userId: "user_456",
   title: "Q4 Planning Discussion",
@@ -87,18 +87,18 @@ Both are useful for different purposes!
 - `folderIds` - Watch folders or smart folders to include in queries
 - `fileIds` - Specific individual files to include in queries
 - Both are optional; empty means "search all accessible content"
-- When resuming a conversation, the UI can pre-populate these selections
+- When resuming a chat, the UI can pre-populate these selections
 - User can still override per-message if needed
 
 ### Message Object
 ```javascript
 {
   messageId: "msg_1730532400_xyz789",
-  conversationId: "conv_1730532342_abc123",
+  chatId: "chat_1730532342_abc123",
   role: "assistant", // "user" | "assistant" | "system"
   content: "Based on the documents...",
   
-  // Who created this message (for collaborative conversations)
+  // Who created this message (for collaborative chats)
   createdBy: "user_456",
   createdByName: "Alice Smith",
   createdByEmail: "alice@company.com",
@@ -127,7 +127,7 @@ Both are useful for different purposes!
 
 **Note on `createdBy`:** 
 - Automatically set to the authenticated user who adds the message
-- Essential for collaborative conversations to show who asked each question
+- Essential for collaborative chats to show who asked each question
 - Includes user name and email for easy identification in the UI
 
 ---
@@ -136,9 +136,9 @@ Both are useful for different purposes!
 
 ### 1. Create Conversation
 
-**POST** `/api/orgs/:orgId/conversations`
+**POST** `/api/orgs/:orgId/chats`
 
-Create a new conversation within an organization.
+Create a new chat within an organization.
 
 **Request Headers:**
 ```
@@ -159,7 +159,7 @@ Content-Type: application/json
 
 **Field Details:**
 - `title` (optional): Conversation title (default: "New Conversation")
-- `description` (optional): Description of conversation purpose
+- `description` (optional): Description of chat purpose
 - `folderIds` (optional): Array of watch/smart folder IDs to query (default: `[]`)
 - `fileIds` (optional): Array of specific file IDs to query (default: `[]`)
 - `metadata` (optional): Additional metadata (default: `{}`)
@@ -168,8 +168,8 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "conversation": {
-    "conversationId": "conv_1730532342_abc123",
+  "chat": {
+    "chatId": "chat_1730532342_abc123",
     "orgId": "org_123",
     "userId": "user_456",
     "title": "Q4 Planning",
@@ -186,9 +186,9 @@ Content-Type: application/json
 
 ### 2. List Conversations
 
-**GET** `/api/orgs/:orgId/conversations`
+**GET** `/api/orgs/:orgId/chats`
 
-List all conversations accessible to the authenticated user (owned or shared).
+List all chats accessible to the authenticated user (owned or shared).
 
 **Request Headers:**
 ```
@@ -202,16 +202,16 @@ Authorization: Bearer <jwt_token>
 
 **Example:**
 ```
-GET /api/orgs/org_123/conversations?archived=false&limit=20&offset=0
+GET /api/orgs/org_123/chats?archived=false&limit=20&offset=0
 ```
 
 **Response (200 OK):**
 ```json
 {
   "success": true,
-  "conversations": [
+  "chats": [
     {
-      "conversationId": "conv_1730532342_abc123",
+      "chatId": "chat_1730532342_abc123",
       "title": "Q4 Planning",
       "description": "Discussion about Q4 strategy",
       "messageCount": 12,
@@ -234,9 +234,9 @@ GET /api/orgs/org_123/conversations?archived=false&limit=20&offset=0
 
 ### 3. Get Conversation Details
 
-**GET** `/api/conversations/:conversationId`
+**GET** `/api/chats/:chatId`
 
-Get detailed information about a specific conversation.
+Get detailed information about a specific chat.
 
 **Request Headers:**
 ```
@@ -247,8 +247,8 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "success": true,
-  "conversation": {
-    "conversationId": "conv_1730532342_abc123",
+  "chat": {
+    "chatId": "chat_1730532342_abc123",
     "orgId": "org_123",
     "userId": "user_456",
     "title": "Q4 Planning",
@@ -275,9 +275,9 @@ Authorization: Bearer <jwt_token>
 
 ### 4. Update Conversation
 
-**PUT** `/api/conversations/:conversationId`
+**PUT** `/api/chats/:chatId`
 
-Update conversation details. Only the owner can update a conversation.
+Update chat details. Only the owner can update a chat.
 
 **Request Headers:**
 ```
@@ -297,7 +297,7 @@ Content-Type: application/json
 }
 ```
 
-**Note:** You can update `folderIds` and `fileIds` to change the query scope for future messages in this conversation.
+**Note:** You can update `folderIds` and `fileIds` to change the query scope for future messages in this chat.
 
 **Response (200 OK):**
 ```json
@@ -308,16 +308,16 @@ Content-Type: application/json
 ```
 
 **Errors:**
-- `403 Forbidden`: Only owner can update conversation
+- `403 Forbidden`: Only owner can update chat
 - `404 Not Found`: Conversation not found
 
 ---
 
 ### 5. Delete Conversation
 
-**DELETE** `/api/conversations/:conversationId`
+**DELETE** `/api/chats/:chatId`
 
-Delete a conversation and all its messages. Only the owner can delete.
+Delete a chat and all its messages. Only the owner can delete.
 
 **Request Headers:**
 ```
@@ -333,16 +333,16 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Errors:**
-- `403 Forbidden`: Only owner can delete conversation
+- `403 Forbidden`: Only owner can delete chat
 - `404 Not Found`: Conversation not found
 
 ---
 
 ### 6. Add Message to Conversation
 
-**POST** `/api/conversations/:conversationId/messages`
+**POST** `/api/chats/:chatId/messages`
 
-Add a new message to a conversation.
+Add a new message to a chat.
 
 **Request Headers:**
 ```
@@ -380,7 +380,7 @@ Content-Type: application/json
   "success": true,
   "message": {
     "messageId": "msg_1730532400_xyz789",
-    "conversationId": "conv_1730532342_abc123",
+    "chatId": "chat_1730532342_abc123",
     "role": "user",
     "content": "What were our Q3 results?",
     "tokens": 8,
@@ -398,9 +398,9 @@ Content-Type: application/json
 
 ### 7. Get Conversation Messages
 
-**GET** `/api/conversations/:conversationId/messages`
+**GET** `/api/chats/:chatId/messages`
 
-Retrieve all messages in a conversation.
+Retrieve all messages in a chat.
 
 **Request Headers:**
 ```
@@ -413,7 +413,7 @@ Authorization: Bearer <jwt_token>
 
 **Example:**
 ```
-GET /api/conversations/conv_123/messages?limit=50&offset=0
+GET /api/chats/chat_123/messages?limit=50&offset=0
 ```
 
 **Response (200 OK):**
@@ -472,9 +472,9 @@ GET /api/conversations/conv_123/messages?limit=50&offset=0
 
 ### 8. Share Conversation
 
-**POST** `/api/conversations/:conversationId/share`
+**POST** `/api/chats/:chatId/share`
 
-Share a conversation with a user, team, or entire organization.
+Share a chat with a user, team, or entire organization.
 
 **Request Headers:**
 ```
@@ -506,7 +506,7 @@ Content-Type: application/json
 
 **Errors:**
 - `400 Bad Request`: Invalid shareType
-- `403 Forbidden`: Only owner can share conversation
+- `403 Forbidden`: Only owner can share chat
 - `404 Not Found`: Conversation not found
 
 **Examples:**
@@ -542,7 +542,7 @@ Share with entire organization:
 
 ### 9. Unshare Conversation
 
-**DELETE** `/api/conversations/:conversationId/share`
+**DELETE** `/api/chats/:chatId/share`
 
 Remove sharing access from a user, team, or organization.
 
@@ -569,16 +569,16 @@ Content-Type: application/json
 ```
 
 **Errors:**
-- `403 Forbidden`: Only owner can unshare conversation
+- `403 Forbidden`: Only owner can unshare chat
 - `404 Not Found`: Conversation not found
 
 ---
 
 ## 🔄 Complete Workflow Example
 
-### 1. Create a new conversation with query scope
+### 1. Create a new chat with query scope
 ```bash
-curl -X POST http://localhost:3000/api/orgs/org_123/conversations \
+curl -X POST http://localhost:3000/api/orgs/org_123/chats \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -588,13 +588,13 @@ curl -X POST http://localhost:3000/api/orgs/org_123/conversations \
     "fileIds": ["doc_budget_2024", "doc_launch_strategy"]
   }'
 
-# Returns: { success: true, conversation: { conversationId: "conv_abc123", ... } }
-# Now all queries in this conversation will search these folders/files by default
+# Returns: { success: true, chat: { chatId: "chat_abc123", ... } }
+# Now all queries in this chat will search these folders/files by default
 ```
 
 ### 2. Add user message
 ```bash
-curl -X POST http://localhost:3000/api/conversations/conv_abc123/messages \
+curl -X POST http://localhost:3000/api/chats/chat_abc123/messages \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -605,7 +605,7 @@ curl -X POST http://localhost:3000/api/conversations/conv_abc123/messages \
 
 ### 3. Add AI assistant response
 ```bash
-curl -X POST http://localhost:3000/api/conversations/conv_abc123/messages \
+curl -X POST http://localhost:3000/api/chats/chat_abc123/messages \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -622,7 +622,7 @@ curl -X POST http://localhost:3000/api/conversations/conv_abc123/messages \
 
 ### 4. Share with team
 ```bash
-curl -X POST http://localhost:3000/api/conversations/conv_abc123/share \
+curl -X POST http://localhost:3000/api/chats/chat_abc123/share \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -632,15 +632,15 @@ curl -X POST http://localhost:3000/api/conversations/conv_abc123/share \
   }'
 ```
 
-### 5. Retrieve conversation history
+### 5. Retrieve chat history
 ```bash
-curl -X GET "http://localhost:3000/api/conversations/conv_abc123/messages?limit=100" \
+curl -X GET "http://localhost:3000/api/chats/chat_abc123/messages?limit=100" \
   -H "Authorization: Bearer eyJ..."
 ```
 
-### 6. Update conversation metadata
+### 6. Update chat metadata
 ```bash
-curl -X PUT http://localhost:3000/api/conversations/conv_abc123 \
+curl -X PUT http://localhost:3000/api/chats/chat_abc123 \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -659,44 +659,44 @@ curl -X PUT http://localhost:3000/api/conversations/conv_abc123 \
 3. **Read**: View only
 
 ### Access Rules
-- User automatically becomes owner when creating a conversation
+- User automatically becomes owner when creating a chat
 - Conversations can be shared with:
   - Specific users (`shareType: "user"`)
   - Teams (`shareType: "team"`)
   - Entire organization (`shareType: "org"`)
 - Only owner can:
-  - Update conversation metadata
-  - Delete conversation
-  - Share/unshare conversation
+  - Update chat metadata
+  - Delete chat
+  - Share/unshare chat
 - Shared users can view based on their permission level
 
 ### ACL Enforcement
 - All endpoints verify user access via JWT
-- Queries include LEFT JOINs to `conversation_shares` and `team_members`
+- Queries include LEFT JOINs to `chat_shares` and `team_members`
 - Access granted if:
   - User is owner (`user_id` matches)
-  - User is in a team that conversation is shared with
+  - User is in a team that chat is shared with
   - Conversation is shared with entire org
 
 ---
 
 ## 🤝 Collaborative Conversations
 
-With the `write` permission and `createdBy` tracking, multiple users can collaborate in the same conversation:
+With the `write` permission and `createdBy` tracking, multiple users can collaborate in the same chat:
 
 ### How It Works
 
 **Step 1: Alice creates & shares**
 ```bash
-# Alice creates conversation
-POST /api/orgs/org_123/conversations
+# Alice creates chat
+POST /api/orgs/org_123/chats
 {
   "title": "Q4 Marketing Analysis",
   "folderIds": ["folder_marketing"]
 }
 
 # Alice shares with Bob (write permission)
-POST /api/conversations/conv_abc/share
+POST /api/chats/chat_abc/share
 {
   "shareWith": "user_bob",
   "shareType": "user", 
@@ -707,7 +707,7 @@ POST /api/conversations/conv_abc/share
 **Step 2: Both add messages**
 ```javascript
 // Alice asks:
-POST /api/conversations/conv_abc/messages
+POST /api/chats/chat_abc/messages
 {
   "role": "user",
   "content": "What was our Instagram ROI?"
@@ -715,7 +715,7 @@ POST /api/conversations/conv_abc/messages
 // → created_by: "user_alice"
 
 // AI responds:
-POST /api/conversations/conv_abc/messages
+POST /api/chats/chat_abc/messages
 {
   "role": "assistant",
   "content": "Instagram ROI was 3.2x..."
@@ -723,7 +723,7 @@ POST /api/conversations/conv_abc/messages
 // → created_by: "user_alice" (same user who asked)
 
 // Bob asks:
-POST /api/conversations/conv_abc/messages  
+POST /api/chats/chat_abc/messages  
 {
   "role": "user",
   "content": "What about Facebook?"
@@ -731,7 +731,7 @@ POST /api/conversations/conv_abc/messages
 // → created_by: "user_bob"
 
 // AI responds:
-POST /api/conversations/conv_abc/messages
+POST /api/chats/chat_abc/messages
 {
   "role": "assistant",  
   "content": "Facebook ROI was 2.1x..."
@@ -741,7 +741,7 @@ POST /api/conversations/conv_abc/messages
 
 **Step 3: View thread**
 ```javascript
-GET /api/conversations/conv_abc/messages
+GET /api/chats/chat_abc/messages
 
 Response:
 {
@@ -796,7 +796,7 @@ Response:
 
 ### Benefits
 ✅ **Clear attribution** - See who asked each question  
-✅ **Shared context** - Both users see full conversation  
+✅ **Shared context** - Both users see full chat  
 ✅ **Collaborative research** - Multiple perspectives in one thread  
 ✅ **Audit trail** - Track who contributed what  
 
@@ -807,7 +807,7 @@ Response:
 - Multiple analysts researching same topic
 - Manager and team member co-investigating
 - Both need to ask follow-up questions
-- **Can update query scope** (folderIds/fileIds) mid-conversation
+- **Can update query scope** (folderIds/fileIds) mid-chat
 
 **Read Permission** (reference):
 - "FYI, here's what I learned"
@@ -819,17 +819,17 @@ Response:
 
 ## 👥 Conversation-Level Collaboration
 
-Beyond messages, the **conversation object itself** supports collaboration:
+Beyond messages, the **chat object itself** supports collaboration:
 
 ### What Can Write Users Do?
 
 **Owner (Alice)**:
 - ✅ Update title, description
-- ✅ Archive conversation
+- ✅ Archive chat
 - ✅ Update query scope (folderIds, fileIds)
 - ✅ Add/edit tags
-- ✅ Share/unshare conversation
-- ✅ Delete conversation
+- ✅ Share/unshare chat
+- ✅ Delete chat
 - ✅ Add messages
 
 **Write User (Bob)**:
@@ -842,18 +842,18 @@ Beyond messages, the **conversation object itself** supports collaboration:
 - ❌ Cannot delete
 
 **Read User (Carol)**:
-- ✅ View conversation and messages
+- ✅ View chat and messages
 - ❌ Cannot modify anything
 
 ### Participant Tracking
 
 The system automatically tracks who's actively participating:
 
-**Example Response** from `GET /api/conversations/conv_123`:
+**Example Response** from `GET /api/chats/chat_123`:
 ```json
 {
-  "conversation": {
-    "conversationId": "conv_123",
+  "chat": {
+    "chatId": "chat_123",
     "title": "Q4 Marketing Analysis",
     "userId": "user_alice",  // Owner
     "folderIds": ["folder_marketing", "folder_sales"],
@@ -885,7 +885,7 @@ The system automatically tracks who's actively participating:
 
 ```bash
 # Bob (with write permission) updates query scope
-PUT /api/conversations/conv_123
+PUT /api/chats/chat_123
 {
   "folderIds": ["folder_marketing", "folder_sales", "folder_finance"],
   "fileIds": ["doc_budget", "doc_forecast"]
@@ -941,9 +941,9 @@ You could track scope changes:
 ## 📊 Use Cases
 
 ### 1. Scoped Conversations with Query Context
-**Problem:** Users want to have focused conversations about specific topics without manually selecting folders/files every time.
+**Problem:** Users want to have focused chats about specific topics without manually selecting folders/files every time.
 
-**Solution:** Set `folderIds` and `fileIds` when creating a conversation:
+**Solution:** Set `folderIds` and `fileIds` when creating a chat:
 ```javascript
 {
   title: "Q4 Financial Review",
@@ -956,26 +956,26 @@ You could track scope changes:
 - UI can auto-scope queries to these folders/files
 - User doesn't repeat selections for each message
 - Conversation "remembers" its context
-- Can be updated mid-conversation if scope changes
+- Can be updated mid-chat if scope changes
 
 **Example UX Flow:**
-1. User creates conversation: "Q4 Financial Review"
+1. User creates chat: "Q4 Financial Review"
 2. Selects Finance folder + Q3 report file
 3. Every message automatically searches those sources
 4. UI shows active scope: "📁 Finance, 📄 Q3 Report"
-5. User can add/remove folders during conversation
+5. User can add/remove folders during chat
 
 ### 2. Personal Knowledge Base
-- Create conversation per topic
+- Create chat per topic
 - Link to relevant folders/files
 - Build searchable Q&A history
-- Each conversation has its own context
+- Each chat has its own context
 
 ### 3. Team Collaboration
-- Share important conversations with team
+- Share important chats with team
 - Include the folder/file scope
 - Team members can see what was searched
-- Reference shared conversations in discussions
+- Reference shared chats in discussions
 
 ### 4. Audit & Compliance
 - Complete message history
@@ -984,10 +984,10 @@ You could track scope changes:
 - Query scope tracking (intended folders/files)
 
 ### 5. Knowledge Management
-- Tag conversations by topic/project
+- Tag chats by topic/project
 - Archive completed projects
 - Search and retrieve past insights
-- Filter conversations by folder scope
+- Filter chats by folder scope
 
 ---
 
@@ -1009,13 +1009,13 @@ You could track scope changes:
 - Grant `write` only when collaboration is needed
 
 ### 4. Organization
-- Archive old conversations regularly
+- Archive old chats regularly
 - Use consistent tagging scheme
-- Link conversations to relevant folders
+- Link chats to relevant folders
 
 ### 5. Performance
-- Use pagination for large conversation lists
-- Archive conversations not actively used
+- Use pagination for large chat lists
+- Archive chats not actively used
 - Limit message history requests to necessary range
 
 ---
@@ -1032,7 +1032,7 @@ You could track scope changes:
 
 **403 Forbidden**
 ```json
-{ "error": "Only owner can update conversation" }
+{ "error": "Only owner can update chat" }
 ```
 → User doesn't have permission for this action
 
@@ -1054,9 +1054,9 @@ You could track scope changes:
 
 ### Frontend Integration
 ```javascript
-// Create conversation
+// Create chat
 async function createConversation(orgId, title, folderIds) {
-  const response = await fetch(`/api/orgs/${orgId}/conversations`, {
+  const response = await fetch(`/api/orgs/${orgId}/chats`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${jwtToken}`,
@@ -1068,8 +1068,8 @@ async function createConversation(orgId, title, folderIds) {
 }
 
 // Add message
-async function addMessage(conversationId, role, content, metadata = {}) {
-  const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+async function addMessage(chatId, role, content, metadata = {}) {
+  const response = await fetch(`/api/chats/${chatId}/messages`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${jwtToken}`,
@@ -1080,10 +1080,10 @@ async function addMessage(conversationId, role, content, metadata = {}) {
   return await response.json();
 }
 
-// Get conversation history
-async function getMessages(conversationId, limit = 100) {
+// Get chat history
+async function getMessages(chatId, limit = 100) {
   const response = await fetch(
-    `/api/conversations/${conversationId}/messages?limit=${limit}`,
+    `/api/chats/${chatId}/messages?limit=${limit}`,
     {
       headers: { 'Authorization': `Bearer ${jwtToken}` }
     }
@@ -1098,8 +1098,8 @@ async function getMessages(conversationId, limit = 100) {
 
 ```sql
 -- Conversations table
-CREATE TABLE conversations (
-    conversation_id VARCHAR(255) PRIMARY KEY,
+CREATE TABLE chats (
+    chat_id VARCHAR(255) PRIMARY KEY,
     org_id VARCHAR(255) NOT NULL,
     user_id VARCHAR(255) NOT NULL,
     title VARCHAR(500),
@@ -1117,7 +1117,7 @@ CREATE TABLE conversations (
 -- Messages table
 CREATE TABLE messages (
     message_id VARCHAR(255) PRIMARY KEY,
-    conversation_id VARCHAR(255) NOT NULL,
+    chat_id VARCHAR(255) NOT NULL,
     role ENUM('user', 'assistant', 'system') NOT NULL,
     content TEXT NOT NULL,
     created_by VARCHAR(255),  -- User who created this message (for collaboration)
@@ -1131,8 +1131,8 @@ CREATE TABLE messages (
 );
 
 -- Conversation shares table
-CREATE TABLE conversation_shares (
-    conversation_id VARCHAR(255) NOT NULL,
+CREATE TABLE chat_shares (
+    chat_id VARCHAR(255) NOT NULL,
     shared_with_type ENUM('user', 'team', 'org') NOT NULL,
     shared_with_id VARCHAR(255) NOT NULL,
     permission ENUM('read', 'write') DEFAULT 'read',
@@ -1141,8 +1141,8 @@ CREATE TABLE conversation_shares (
 );
 
 -- Conversation tags table
-CREATE TABLE conversation_tags (
-    conversation_id VARCHAR(255) NOT NULL,
+CREATE TABLE chat_tags (
+    chat_id VARCHAR(255) NOT NULL,
     tag VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

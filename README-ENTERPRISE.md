@@ -299,7 +299,7 @@ POST /api/orgs/:orgId/chat
   "query": "What are the Q3 revenue numbers?",
   "answerMode": "precise",
   "folderIds": ["folder_123"],
-  "conversationHistory": [
+  "chatHistory": [
     {
       "user": "What about Q2?",
       "ai": "Q2 revenue was...",
@@ -357,6 +357,68 @@ POST /api/orgs/:orgId/documents
   }
 }
 ```
+
+#### Get Vector Content
+Fetch a specific vector/chunk content by vector ID. Returns the text content along with document metadata and chunk information.
+
+```http
+GET /api/orgs/:orgId/vectors/:vectorId
+
+Response:
+{
+  "success": true,
+  "vectorId": "doc_1762514637292_yqk40akg9:0",
+  "content": {
+    "text": "Assistant Teachers give selfless service...",
+    "title": "AT Manual - Course Guidelines.docx",
+    "filename": "AT Manual - Course Guidelines.docx",
+    "filepath": "/Users/.../AT Manual - Course Guidelines.docx",
+    "chunkNo": 0,
+    "totalChunks": 7,
+    "mimeType": "application/docx",
+    "docId": "doc_1762514637292_yqk40akg9",
+    "folderId": "folder_xxx",
+    "createdAt": 1762514637292
+  }
+}
+```
+
+**Use Case**: Display vector content in a modal when user clicks inline source citations like `(Source: doc_xxx:0)`.
+
+#### Get All Document Vectors
+Fetch all vectors/chunks for a complete document. Useful for displaying the entire document content.
+
+```http
+GET /api/orgs/:orgId/documents/:docId/vectors
+
+Response:
+{
+  "success": true,
+  "docId": "doc_1762514637292_yqk40akg9",
+  "totalChunks": 7,
+  "vectors": [
+    {
+      "vectorId": "doc_1762514637292_yqk40akg9:0",
+      "chunkNo": 0,
+      "text": "AT Manual : Course Guidelines...",
+      "title": "AT Manual - Course Guidelines.docx",
+      "filename": "AT Manual - Course Guidelines.docx",
+      "filepath": "/Users/.../AT Manual - Course Guidelines.docx"
+    },
+    {
+      "vectorId": "doc_1762514637292_yqk40akg9:1",
+      "chunkNo": 1,
+      "text": "minutes silently and then begin...",
+      "title": "AT Manual - Course Guidelines.docx",
+      "filename": "AT Manual - Course Guidelines.docx",
+      "filepath": "/Users/.../AT Manual - Course Guidelines.docx"
+    }
+    // ... more chunks sorted by chunkNo
+  ]
+}
+```
+
+**Use Case**: View complete document content or navigate between chunks in the UI.
 
 ## 🔧 Service Architecture
 

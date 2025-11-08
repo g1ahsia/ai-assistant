@@ -8,15 +8,15 @@ A complete enterprise multi-tenant document management and AI chat system with:
 - **Team-based access control** (metadata-driven)
 - **Single-namespace queries** (fast & efficient)
 - **Background ACL propagation** (immediate + eventual consistency)
-- **Conversation management** (full history, sharing, source tracking)
+- **Chat management** (full history, sharing, source tracking)
 
 ## 📁 Files Created
 
 ### 1. Database Schema
 **`schema-enterprise.sql`** (300+ lines)
 - Complete MySQL schema for multi-tenant architecture
-- Tables: orgs, users, org_members, teams, team_members, folders, folder_acl, documents, audit_log, conversations, messages, conversation_shares, conversation_tags
-- Views: user_team_memberships, folder_access, conversation_access
+- Tables: orgs, users, org_members, teams, team_members, folders, folder_acl, documents, audit_log, chats, messages, chat_shares, chat_tags
+- Views: user_team_memberships, folder_access, chat_access
 - Indexes optimized for common queries
 
 ### 2. Configuration
@@ -93,41 +93,42 @@ A complete enterprise multi-tenant document management and AI chat system with:
 **Documents:**
 - `POST /api/orgs/:orgId/documents` - Upload & index
 - `POST /api/orgs/:orgId/delete-vectors` - Delete vectors
-- `GET /api/orgs/:orgId/vectors/:vectorId` - Get vector content
+- `GET /api/orgs/:orgId/vectors/:vectorId` - Get vector content (with chunk info)
+- `GET /api/orgs/:orgId/documents/:docId/vectors` - Get all document chunks
 
-**Conversations:**
-- `POST /api/orgs/:orgId/conversations` - Create conversation
-- `GET /api/orgs/:orgId/conversations` - List conversations
-- `GET /api/conversations/:conversationId` - Get conversation details
-- `PUT /api/conversations/:conversationId` - Update conversation
-- `DELETE /api/conversations/:conversationId` - Delete conversation
-- `POST /api/conversations/:conversationId/messages` - Add message
-- `GET /api/conversations/:conversationId/messages` - Get messages
-- `POST /api/conversations/:conversationId/share` - Share conversation
-- `DELETE /api/conversations/:conversationId/share` - Unshare conversation
+**Chats:**
+- `POST /api/orgs/:orgId/chats` - Create chat
+- `GET /api/orgs/:orgId/chats` - List chats
+- `GET /api/chats/:chatId` - Get chat details
+- `PUT /api/chats/:chatId` - Update chat
+- `DELETE /api/chats/:chatId` - Delete chat
+- `POST /api/chats/:chatId/messages` - Add message
+- `GET /api/chats/:chatId/messages` - Get messages
+- `POST /api/chats/:chatId/share` - Share chat
+- `DELETE /api/chats/:chatId/share` - Unshare chat
 
 **Middleware:**
 - JWT authentication
 - Org membership verification
 - Role-based access control
 
-### 7. Conversation Management System
+### 7. Chat Management System
 
 **Database Tables:**
-- `conversations` - Chat sessions with metadata
-- `messages` - Individual messages within conversations
-- `conversation_shares` - Share conversations with teams/users/org
-- `conversation_tags` - Tag organization for conversations
-- `conversation_participants` - Track active users in collaborative conversations
-- `conversation_access` (view) - Unified access view
+- `chats` - Chat sessions with metadata
+- `messages` - Individual messages within chats
+- `chat_shares` - Share chats with teams/users/org
+- `chat_tags` - Tag organization for chats
+- `chat_participants` - Track active users in collaborative chats
+- `chat_access` (view) - Unified access view
 
 **Table Schemas:**
 
 ```sql
--- Conversations: Individual chat sessions
-CREATE TABLE conversations (
+-- Chats: Individual chat sessions
+CREATE TABLE chats (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    conversation_id VARCHAR(255) UNIQUE NOT NULL,
+    chat_id VARCHAR(255) UNIQUE NOT NULL,
     org_id VARCHAR(255) NOT NULL,
     user_id VARCHAR(255) NOT NULL,
     title VARCHAR(500),
@@ -148,11 +149,11 @@ CREATE TABLE conversations (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- Messages: Individual messages within conversations
+-- Messages: Individual messages within chats
 CREATE TABLE messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     message_id VARCHAR(255) UNIQUE NOT NULL,
-    conversation_id VARCHAR(255) NOT NULL,
+    chat_id VARCHAR(255) NOT NULL,
     role ENUM('user', 'assistant', 'system') NOT NULL,
     content TEXT NOT NULL,
     created_by VARCHAR(255),  -- User who created this message
@@ -163,65 +164,65 @@ CREATE TABLE messages (
     temperature DECIMAL(3,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     metadata JSON DEFAULT '{}',
-    INDEX idx_msg_conv (conversation_id, created_at),
+    INDEX idx_msg_conv (chat_id, created_at),
     INDEX idx_msg_created (created_at),
     INDEX idx_msg_user (created_by, created_at),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
--- Conversation Sharing: Share conversations with teams/users
-CREATE TABLE conversation_shares (
+-- Chat Sharing: Share chats with teams/users
+CREATE TABLE chat_shares (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    conversation_id VARCHAR(255) NOT NULL,
+    chat_id VARCHAR(255) NOT NULL,
     shared_with_type ENUM('user', 'team', 'org') NOT NULL,
     shared_with_id VARCHAR(255) NOT NULL,
     permission ENUM('read', 'write') DEFAULT 'read',
     shared_by VARCHAR(255) NOT NULL,
     shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_share_conv (conversation_id),
+    INDEX idx_share_conv (chat_id),
     INDEX idx_share_target (shared_with_type, shared_with_id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE,
     FOREIGN KEY (shared_by) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- Conversation Tags: Organize conversations
-CREATE TABLE conversation_tags (
+-- Chat Tags: Organize chats
+CREATE TABLE chat_tags (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    conversation_id VARCHAR(255) NOT NULL,
+    chat_id VARCHAR(255) NOT NULL,
     tag VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_tag_conv (conversation_id),
+    INDEX idx_tag_conv (chat_id),
     INDEX idx_tag_name (tag),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE
 );
 
--- Conversation Participants: Track active users
-CREATE TABLE conversation_participants (
+-- Chat Participants: Track active users
+CREATE TABLE chat_participants (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    conversation_id VARCHAR(255) NOT NULL,
+    chat_id VARCHAR(255) NOT NULL,
     user_id VARCHAR(255) NOT NULL,
     first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     message_count INT DEFAULT 0,
-    UNIQUE KEY unique_participant (conversation_id, user_id),
-    INDEX idx_participant_conv (conversation_id),
+    UNIQUE KEY unique_participant (chat_id, user_id),
+    INDEX idx_participant_conv (chat_id),
     INDEX idx_participant_user (user_id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 ```
 
 **Features:**
-- Create and manage chat conversations
+- Create and manage chat chats
 - Save complete message history (user, assistant, system)
 - Track tokens, sources, and context per message
-- Share conversations with teams, users, or entire org
-- **Collaborative conversations** - Multiple users can add messages with full attribution
-- **Automatic participant tracking** - System tracks who's active in each conversation
-- Tag and categorize conversations
-- Archive and search conversation history
-- Link conversations to specific folders (watch folders + specific files)
+- Share chats with teams, users, or entire org
+- **Collaborative chats** - Multiple users can add messages with full attribution
+- **Automatic participant tracking** - System tracks who's active in each chat
+- Tag and categorize chats
+- Archive and search chat history
+- Link chats to specific folders (watch folders + specific files)
 - Full ACL enforcement (owner, shared, team-based)
 - Per-message `created_by` tracking for collaboration
 - Write users can update query scope (folderIds/fileIds)
@@ -257,10 +258,10 @@ CREATE TABLE conversation_participants (
 - Frontend integration examples
 - Error handling reference
 
-**`CONVERSATIONS-API.md`** (800+ lines)
-- Complete conversation management API reference
+**`CHATS-API.md`** (800+ lines)
+- Complete chat management API reference
 - Data models and schemas
-- 9 conversation endpoints documented
+- 9 chat endpoints documented
 - Full workflow examples
 - Access control rules
 - Best practices and integration tips
@@ -309,11 +310,11 @@ space_<spaceId> # Cross-org collaboration (optional)
 }
 ```
 
-### Conversation Schema
+### Chat Schema
 ```javascript
-// Conversation object
+// Chat object
 {
-  conversation_id: "conv_1730532342_abc123",
+  chat_id: "conv_1730532342_abc123",
   org_id: "org_123",
   user_id: "user_456",
   title: "Q4 Planning Discussion",
@@ -334,7 +335,7 @@ space_<spaceId> # Cross-org collaboration (optional)
 // Message object
 {
   message_id: "msg_1730532400_xyz789",
-  conversation_id: "conv_1730532342_abc123",
+  chat_id: "conv_1730532342_abc123",
   role: "assistant",  // user | assistant | system
   content: "Based on the documents...",
   created_by: "user_456",  // Who created this message (for collaboration)
@@ -359,9 +360,9 @@ space_<spaceId> # Cross-org collaboration (optional)
   metadata: {}
 }
 
-// Conversation sharing
+// Chat sharing
 {
-  conversation_id: "conv_1730532342_abc123",
+  chat_id: "conv_1730532342_abc123",
   shared_with_type: "team",  // user | team | org
   shared_with_id: "team_789",
   permission: "read",  // read | write
@@ -411,12 +412,12 @@ User shares folder with teams
 5. Complete
 ```
 
-### Conversation Management Flow
+### Chat Management Flow
 ```
-User creates conversation
+User creates chat
     ↓
-1. Create conversation record
-   - Auto-generate conversation_id
+1. Create chat record
+   - Auto-generate chat_id
    - Link to org & user
    - Set query scope:
      * folderIds: Watch/smart folders to search
@@ -427,7 +428,7 @@ User creates conversation
    - User messages (queries)
    - Assistant messages (responses)
    - System messages (notifications)
-   - Each message uses conversation's scope by default
+   - Each message uses chat's scope by default
    - Can override per-message if needed
     ↓
 3. Track metadata per message
@@ -436,12 +437,12 @@ User creates conversation
    - Context chunks
    - Model & temperature
     ↓
-4. Update scope mid-conversation (optional)
+4. Update scope mid-chat (optional)
    - Add/remove folders or files
    - UI reflects new scope
    - Future messages use updated scope
     ↓
-5. Share conversation (optional)
+5. Share chat (optional)
    - With specific users
    - With teams
    - With entire org
@@ -449,7 +450,7 @@ User creates conversation
     ↓
 6. Organize & manage
    - Add tags for categorization
-   - Archive old conversations
+   - Archive old chats
    - Search by title/tags/scope
    - Full history preserved
 ```
@@ -491,12 +492,12 @@ User creates conversation
 
 **Result:** Clean ACL model, scales to large orgs
 
-### 6. Conversation History Storage
-**Why:** Users need to reference past conversations, track token usage, and share insights
+### 6. Chat History Storage
+**Why:** Users need to reference past chats, track token usage, and share insights
 
 **Trade-off:** Additional database storage for messages and metadata
 
-**Result:** Complete audit trail, better UX, enables conversation sharing and collaboration
+**Result:** Complete audit trail, better UX, enables chat sharing and collaboration
 
 ## 📊 Comparison: Personal vs Enterprise
 
@@ -593,11 +594,11 @@ curl -X POST http://localhost:3000/api/orgs/org_123/chat \
   }'
 ```
 
-### 8. Manage Conversations
+### 8. Manage Chats
 
-#### Create a New Conversation
+#### Create a New Chat
 ```bash
-curl -X POST http://localhost:3000/api/orgs/org_123/conversations \
+curl -X POST http://localhost:3000/api/orgs/org_123/chats \
   -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -606,14 +607,14 @@ curl -X POST http://localhost:3000/api/orgs/org_123/conversations \
     "folderIds": ["folder_finance", "folder_strategy"],
     "fileIds": ["doc_q3_report", "doc_budget_2024"]
   }'
-# Returns: { success: true, conversation: {...} }
-# All messages in this conversation will query these folders/files by default
+# Returns: { success: true, chat: {...} }
+# All messages in this chat will query these folders/files by default
 ```
 
-#### Add Messages to Conversation
+#### Add Messages to Chat
 ```bash
 # User message
-curl -X POST http://localhost:3000/api/conversations/conv_123/messages \
+curl -X POST http://localhost:3000/api/chats/conv_123/messages \
   -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -622,7 +623,7 @@ curl -X POST http://localhost:3000/api/conversations/conv_123/messages \
   }'
 
 # Assistant message (typically added by backend after AI response)
-curl -X POST http://localhost:3000/api/conversations/conv_123/messages \
+curl -X POST http://localhost:3000/api/chats/conv_123/messages \
   -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -637,24 +638,24 @@ curl -X POST http://localhost:3000/api/conversations/conv_123/messages \
   }'
 ```
 
-#### Get Conversation History
+#### Get Chat History
 ```bash
-# List all conversations
-curl -X GET "http://localhost:3000/api/orgs/org_123/conversations?limit=20" \
+# List all chats
+curl -X GET "http://localhost:3000/api/orgs/org_123/chats?limit=20" \
   -H "Authorization: Bearer <jwt>"
 
-# Get specific conversation details
-curl -X GET http://localhost:3000/api/conversations/conv_123 \
+# Get specific chat details
+curl -X GET http://localhost:3000/api/chats/conv_123 \
   -H "Authorization: Bearer <jwt>"
 
-# Get all messages in a conversation
-curl -X GET "http://localhost:3000/api/conversations/conv_123/messages?limit=100" \
+# Get all messages in a chat
+curl -X GET "http://localhost:3000/api/chats/conv_123/messages?limit=100" \
   -H "Authorization: Bearer <jwt>"
 ```
 
-#### Share Conversation with Team
+#### Share Chat with Team
 ```bash
-curl -X POST http://localhost:3000/api/conversations/conv_123/share \
+curl -X POST http://localhost:3000/api/chats/conv_123/share \
   -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -664,10 +665,10 @@ curl -X POST http://localhost:3000/api/conversations/conv_123/share \
   }'
 ```
 
-#### Update and Archive Conversations
+#### Update and Archive Chats
 ```bash
-# Update conversation details
-curl -X PUT http://localhost:3000/api/conversations/conv_123 \
+# Update chat details
+curl -X PUT http://localhost:3000/api/chats/conv_123 \
   -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -676,8 +677,8 @@ curl -X PUT http://localhost:3000/api/conversations/conv_123 \
     "archived": false
   }'
 
-# Archive a conversation
-curl -X PUT http://localhost:3000/api/conversations/conv_123 \
+# Archive a chat
+curl -X PUT http://localhost:3000/api/chats/conv_123 \
   -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
   -d '{"archived": true}'
@@ -692,7 +693,7 @@ curl -X PUT http://localhost:3000/api/conversations/conv_123 \
 5. **Single-copy storage** - No duplication for shared docs
 6. **Background propagation** - Non-blocking UX
 7. **Plan-based features** - Built-in SaaS model
-8. **Conversation Management** - Full chat history with sharing, tagging, and source tracking
+8. **Chat Management** - Full chat history with sharing, tagging, and source tracking
 
 ## 📈 Scalability
 
@@ -764,13 +765,13 @@ curl -X PUT http://localhost:3000/api/conversations/conv_123 \
 - ✅ Authorization service with ACL logic
 - ✅ Vector management with metadata ACL
 - ✅ Folder sharing with background propagation
-- ✅ Conversation management with full history
+- ✅ Chat management with full history
 - ✅ Message tracking with source citations
-- ✅ Conversation sharing (user, team, org)
+- ✅ Chat sharing (user, team, org)
 - ✅ Comprehensive documentation
 
 **Lines of code:**
-- ~3,400 lines of production code (includes conversations)
+- ~3,400 lines of production code (includes chats)
 - ~2,000 lines of documentation
 - **Total: ~5,400 lines**
 

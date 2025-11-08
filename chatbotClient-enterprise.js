@@ -81,7 +81,7 @@ export async function queryWithAuth(db, orgId, userId, query, options = {}) {
  * @param {string} orgId - Organization ID
  * @param {string} userId - User ID
  * @param {string} userQuery - User's question
- * @param {Object} conversationHistory - Previous conversation context
+ * @param {Object} chatHistory - Previous chat context
  * @param {Object} options - Query options
  * @returns {Object} { aiResponse, citedSources, context }
  */
@@ -90,7 +90,7 @@ export async function generateResponse(
   orgId,
   userId,
   userQuery,
-  conversationHistory = [],
+  chatHistory = [],
   options = {}
 ) {
   const { 
@@ -121,8 +121,8 @@ Content: ${meta.text}`;
       }).join('\n\n')
     : 'No relevant information found in the database.';
 
-  // Build conversation context
-  const memoryContext = conversationHistory
+  // Build chat context
+  const memoryContext = chatHistory
     .map(msg => `User: ${msg.user}\nAI: ${msg.ai}\nCited Sources: ${msg.citedSources}`)
     .join('\n');
 
@@ -187,7 +187,7 @@ Remember: Your goal is to make document management effortless and information re
   const contextHeader = `CONTEXT FROM ORGANIZATION'S DOCUMENTS:
 ${relevantText}
 
-CONVERSATION HISTORY:
+CHAT HISTORY:
 ${memoryContext}
 
 USER QUERY: ${userQuery}
@@ -202,7 +202,7 @@ PRECISE MODE INSTRUCTIONS:
 STEP 1: UNDERSTAND THE QUERY
 - Identify what type of information is being requested (definition, procedure, list, explanation, comparison, etc.)
 - Note any specific constraints (date ranges, file types, keywords)
-- Consider if this is a follow-up to previous conversation
+- Consider if this is a follow-up to previous chat
 - IMPORTANT: If the query uses vague references like "this file", "that document", "it", etc., the user is referring to the documents in the CONTEXT FROM USER'S DOCUMENTS section above. Answer based on those provided sources.
 
 STEP 2: ANALYZE ALL SOURCES
@@ -230,6 +230,7 @@ STEP 5: FORMAT RESPONSE
 - Use bullet points or numbered lists for multiple items
 - Add inline citations immediately after statements that reference specific sources
 - Format inline citations as: (Source: source-id) using the exact ID from the context
+- CRITICAL: Always use ASCII parentheses () not full-width parentheses （）
 - Place the citation right after the relevant sentence or clause
 - At the end, list all sources with "**Sources**" (in English only)
 - Format: "**Sources**: id-1, id-2, id-3"
@@ -256,7 +257,7 @@ STEP 1: UNDERSTAND THE REQUEST
 
 STEP 2: CHOOSE INFORMATION SOURCES
 Priority order:
-1. Previous conversation history (for follow-ups like "translate that", "summarize it")
+1. Previous chat history (for follow-ups like "translate that", "summarize it")
 2. Provided document context (for document-specific questions)
 3. Your general knowledge (for context, explanations, or when documents lack info)
 
@@ -268,7 +269,7 @@ STEP 3: FORMULATE RESPONSE
 
 STEP 4: HANDLE SPECIAL CASES
 - Translation requests: Translate the most recent relevant content
-- Summary requests: Summarize from conversation history or context
+- Summary requests: Summarize from chat history or context
 - Comparison/analysis: Use both documents and your knowledge
 - No relevant docs: Answer from general knowledge but note this
 
@@ -276,6 +277,7 @@ STEP 5: FORMAT AND CITE
 - Respond in the SAME LANGUAGE as the query
 - Add inline citations immediately after statements that reference specific sources
 - Format inline citations as: (Source: source-id) using the exact ID from the context
+- CRITICAL: Always use ASCII parentheses () not full-width parentheses （）
 - Place the citation right after the relevant sentence or clause
 - At the end, list all sources with "**Sources**" (in English only)
 - Format: "**Sources**: id-1, id-2, id-3"

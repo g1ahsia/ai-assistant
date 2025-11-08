@@ -14,6 +14,7 @@ import config from './config-enterprise.js';
 import authService from './authService.js';
 import chatbotClient from './chatbotClient-enterprise.js';
 import folderService from './folderService.js';
+import { generateSummary } from './chatbotClient.js';
 
 // Google OAuth client
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -958,60 +959,72 @@ app.get('/api/folders/:folderId/sharing', authenticateToken, async (req, res) =>
 /**
  * POST /api/orgs/:orgId/chat
  * Query organization documents and generate AI response
- * Optionally saves messages to conversation if conversationId is provided
+ * Optionally saves messages to chat if chatId is provided
  */
 app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
   const { userId } = req.user;
   const {
     query,
-    conversationHistory = [],
+    chatHistory = [],
     answerMode = 'precise',
     folderIds = [],
     additionalFilters = {},
-    conversationId = null,  // New: optional conversation ID
+    chatId = null,  // New: optional chat ID
   } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
   }
 
+  // Validate and sanitize additionalFilters - remove any invalid Pinecone fields
+  const sanitizedFilters = {};
+  const validMetadataFields = ['folder_id', 'doc_id', 'mime', 'title', 'visibility', 'status', 'team_ids', 'owner_user_id'];
+  
+  for (const [key, value] of Object.entries(additionalFilters)) {
+    if (validMetadataFields.includes(key)) {
+      sanitizedFilters[key] = value;
+    } else {
+      console.warn(`⚠️ Ignoring invalid metadata filter field: ${key}`);
+    }
+  }
+
   try {
-    // Step 1: If conversationId provided, verify access and save user message
+    // Step 1: If chatId provided, verify access and save user message
     let userMessageId = null;
-    if (conversationId) {
-      // Verify user has access to this conversation
-      const [conversations] = await pool.query(
-        `SELECT c.conversation_id
-         FROM conversations c
-         LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+    if (chatId) {
+      // Verify user has access to this chat
+      const [chats] = await pool.query(
+        `SELECT c.chat_id
+         FROM chats c
+         LEFT JOIN chat_shares cs ON c.chat_id = cs.chat_id
          LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id
-         WHERE c.conversation_id = ?
+         WHERE c.chat_id = ?
            AND (c.user_id = ? OR tm.user_id = ? OR cs.shared_with_type = 'org')
          LIMIT 1`,
-        [conversationId, userId, userId]
+        [chatId, userId, userId]
       );
 
-      if (conversations.length === 0) {
-        return res.status(403).json({ error: 'No access to this conversation' });
+      if (chats.length === 0) {
+        return res.status(403).json({ error: 'No access to this chat' });
       }
 
       // Save user message
       userMessageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await pool.query(
-        `INSERT INTO messages (message_id, conversation_id, role, content, created_by, tokens)
+        `INSERT INTO messages (message_id, chat_id, role, content, created_by, tokens)
          VALUES (?, ?, 'user', ?, ?, ?)`,
-        [userMessageId, conversationId, query, userId, 0]
+        [userMessageId, chatId, query, userId, 0]
       );
 
       // Update participant tracking
       await pool.query(
-        `INSERT INTO conversation_participants (conversation_id, user_id, first_message_at, last_message_at, message_count)
+        `INSERT INTO chat_participants (chat_id, user_id, first_message_at, last_message_at, message_count)
          VALUES (?, ?, NOW(), NOW(), 1)
          ON DUPLICATE KEY UPDATE 
            last_message_at = NOW(),
            message_count = message_count + 1`,
-        [conversationId, userId]
+        [chatId, userId]
       );
     }
 
@@ -1021,69 +1034,94 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
       orgId,
       userId,
       query,
-      conversationHistory,
-      { answerMode, folderIds, additionalFilters }
+      chatHistory,
+      { answerMode, folderIds, additionalFilters: sanitizedFilters }
     );
 
-    // Step 3: If conversationId provided, save assistant message
+    // Step 3: If chatId provided, save assistant message
     let assistantMessageId = null;
-    if (conversationId) {
+    if (chatId) {
       assistantMessageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Calculate rough token count (approximation)
       const tokenCount = Math.ceil(result.aiResponse.length / 4);
       
-      // Map cited source IDs to full source objects from context
-      const citedSourceObjects = [];
-      if (result.citedSources && result.citedSources.length > 0 && result.context) {
+      // Map cited source IDs to just the vector IDs (client only needs IDs to resolve file paths)
+      // Client doesn't use text, score, or doc_id - only needs the vector ID to look up file path
+      const citedSourceIds = [];
+      
+      if (result.citedSources && result.citedSources.length > 0) {
+        // Only store the vector IDs as strings, not full objects with text/score
         result.citedSources.forEach(sourceId => {
-          const sourceObj = result.context.find(c => c.id === sourceId);
-          if (sourceObj) {
-            citedSourceObjects.push({
-              id: sourceObj.id,
-              score: sourceObj.score,
-              text: sourceObj.text,
-              metadata: sourceObj.metadata
+          if (sourceId && typeof sourceId === 'string') {
+            citedSourceIds.push(sourceId);
+          } else if (sourceId && typeof sourceId === 'object' && sourceId.id) {
+            // Handle case where sourceId is an object with id property
+            citedSourceIds.push(sourceId.id);
+          } else {
+            console.warn('⚠️ Skipping invalid sourceId (expected string):', typeof sourceId, sourceId);
+          }
+        });
+      }
+      
+      // Store lightweight context summary (without full text content) for reference
+      const contextSummary = [];
+      if (result.context && result.context.length > 0) {
+        result.context.forEach(c => {
+          if (c.metadata) {
+            contextSummary.push({
+              id: c.id,
+              filename: c.metadata.filename,
+              doc_id: c.metadata.doc_id
             });
           }
         });
       }
       
       await pool.query(
-        `INSERT INTO messages (message_id, conversation_id, role, content, created_by, tokens, cited_sources, context_used, model)
+        `INSERT INTO messages (message_id, chat_id, role, content, created_by, tokens, cited_sources, context_used, model)
          VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?, ?)`,
         [
           assistantMessageId, 
-          conversationId, 
+          chatId, 
           result.aiResponse, 
           userId,  // AI response attributed to the user who asked
           tokenCount,
-          JSON.stringify(citedSourceObjects),
-          JSON.stringify(result.context || []),
+          JSON.stringify(citedSourceIds), // Only store vector IDs, not full objects
+          JSON.stringify(contextSummary),
           'gpt-4'  // Update with actual model if available
         ]
       );
 
-      // Update conversation stats
+      // Update chat stats
       await pool.query(
-        `UPDATE conversations 
+        `UPDATE chats 
          SET message_count = message_count + 2,
              total_tokens = total_tokens + ?,
              last_message_at = NOW()
-         WHERE conversation_id = ?`,
-        [tokenCount, conversationId]
+         WHERE chat_id = ?`,
+        [tokenCount, chatId]
       );
     }
+
+    // Create lightweight context for response (avoid sending huge metadata objects)
+    const contextForResponse = result.context.map(c => ({
+      id: c.id,
+      score: c.score,
+      filename: c.metadata.filename || 'Unknown',
+      doc_id: c.metadata.doc_id || '',
+      text: c.metadata.text?.substring(0, 200) || '' // Only first 200 chars for preview
+    }));
 
     res.json({
       success: true,
       response: result.aiResponse,
       citedSources: result.citedSources,
-      context: result.context,
-      // Include conversation info if messages were saved
-      ...(conversationId && {
-        conversation: {
-          conversationId,
+      context: contextForResponse,
+      // Include chat info if messages were saved
+      ...(chatId && {
+        chat: {
+          chatId,
           userMessageId,
           assistantMessageId,
           messagesSaved: true
@@ -1270,6 +1308,121 @@ app.post('/api/orgs/:orgId/delete-vectors', authenticateToken, verifyOrgMembersh
 });
 
 /**
+ * POST /api/orgs/:orgId/generate-summary
+ * Generate summary for document text
+ */
+app.post('/api/orgs/:orgId/generate-summary', authenticateToken, verifyOrgMembership, async (req, res) => {
+  const { orgId } = req.params;
+  const { userId } = req.user;
+  const { text, filename, language = 'en' } = req.body;
+
+  if (!text || !filename) {
+    return res.status(400).json({ 
+      error: 'text and filename are required' 
+    });
+  }
+
+  try {
+    console.log(`📝 Generating summary for file: ${filename} in language: ${language}`);
+    
+    // Call generateSummary function from chatbotClient.js
+    const result = await generateSummary(text, filename, language);
+
+    res.json({
+      success: true,
+      summary: result.summary,
+      filename: result.filename,
+      language: result.language
+    });
+  } catch (error) {
+    console.error('Error generating summary:', error);
+    
+    // Handle specific error messages from generateSummary
+    if (error.message.includes('OpenAI API quota exceeded')) {
+      return res.status(429).json({ 
+        error: 'OpenAI API quota exceeded. Please try again later.' 
+      });
+    }
+    
+    if (error.message.includes('OpenAI API configuration error')) {
+      return res.status(500).json({ 
+        error: 'OpenAI API configuration error. Please contact support.' 
+      });
+    }
+
+    res.status(500).json({ 
+      error: 'Failed to generate summary',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/orgs/:orgId/documents/:docId/vectors
+ * Fetch all vectors for a document
+ */
+app.get('/api/orgs/:orgId/documents/:docId/vectors', authenticateToken, verifyOrgMembership, async (req, res) => {
+  const { orgId, docId } = req.params;
+  const { userId } = req.user;
+
+  console.log('🔍 Fetching all vectors for document:', { orgId, docId, userId });
+
+  try {
+    // Fetch vectors from Pinecone
+    const namespace = config.pinecone.namespaces.org(orgId);
+    const pc = new (await import('@pinecone-database/pinecone')).Pinecone({ 
+      apiKey: config.pinecone.apiKey 
+    });
+    const index = pc.index(config.pinecone.indexName);
+    
+    // Query for all vectors with this doc_id
+    const queryResult = await index.namespace(namespace).query({
+      vector: Array(1024).fill(0), // Dummy vector with correct dimension
+      topK: 10000, // High number to get all chunks
+      filter: { doc_id: docId },
+      includeMetadata: true,
+      includeValues: false,
+    });
+    
+    if (!queryResult.matches || queryResult.matches.length === 0) {
+      console.warn('⚠️ No vectors found for document:', docId);
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    console.log(`📋 Found ${queryResult.matches.length} vectors for document`);
+
+    // Check access for the first vector (all vectors in same doc should have same access)
+    const firstVector = queryResult.matches[0];
+    const hasAccess = await authService.checkVectorAccess(pool, userId, firstVector.metadata);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'No access to this document' });
+    }
+
+    // Sort by chunk_no and return all vectors
+    const vectors = queryResult.matches
+      .map(match => ({
+        vectorId: match.id,
+        chunkNo: match.metadata?.chunk_no || 0,
+        text: match.metadata?.text || '',
+        title: match.metadata?.title || match.metadata?.filename || 'Untitled',
+        filename: match.metadata?.filename,
+        filepath: match.metadata?.filepath || match.metadata?.path,
+      }))
+      .sort((a, b) => a.chunkNo - b.chunkNo);
+
+    res.json({
+      success: true,
+      docId,
+      totalChunks: vectors.length,
+      vectors,
+    });
+  } catch (error) {
+    console.error('Error fetching document vectors:', error);
+    res.status(500).json({ error: 'Failed to fetch document content' });
+  }
+});
+
+/**
  * GET /api/orgs/:orgId/vectors/:vectorId
  * Fetch specific vector content by ID
  */
@@ -1277,17 +1430,54 @@ app.get('/api/orgs/:orgId/vectors/:vectorId', authenticateToken, verifyOrgMember
   const { orgId, vectorId } = req.params;
   const { userId } = req.user;
 
+  console.log('🔍 Fetching vector:', { orgId, vectorId, userId });
+
   try {
     // Fetch vector from Pinecone
     const namespace = config.pinecone.namespaces.org(orgId);
+    console.log('📦 Using namespace:', namespace);
+    
     const pc = new (await import('@pinecone-database/pinecone')).Pinecone({ 
       apiKey: config.pinecone.apiKey 
     });
     const index = pc.index(config.pinecone.indexName);
+    console.log('📊 Using index:', config.pinecone.indexName);
     
     const fetchResult = await index.namespace(namespace).fetch([vectorId]);
+    console.log('📡 Fetch result:', { 
+      hasRecords: !!fetchResult.records, 
+      recordCount: Object.keys(fetchResult.records || {}).length,
+      hasVectorId: !!(fetchResult.records && fetchResult.records[vectorId])
+    });
     
     if (!fetchResult.records || !fetchResult.records[vectorId]) {
+      console.warn('⚠️ Vector not found in Pinecone:', vectorId);
+      
+      // Try to find vectors with similar docId to help debug
+      const docId = vectorId.split(':')[0]; // Extract doc_xxx part
+      console.log('🔍 Searching for similar vectors with docId:', docId);
+      
+      try {
+        const queryResult = await index.namespace(namespace).query({
+          vector: Array(1024).fill(0), // Dummy vector with correct dimension
+          topK: 5,
+          filter: { doc_id: docId },
+          includeMetadata: true,
+          includeValues: false,
+        });
+        
+        if (queryResult.matches && queryResult.matches.length > 0) {
+          console.log('📋 Found vectors for this document:');
+          queryResult.matches.forEach(match => {
+            console.log(`  - ID: ${match.id}, chunk_no: ${match.metadata?.chunk_no}`);
+          });
+        } else {
+          console.log('❌ No vectors found for docId:', docId);
+        }
+      } catch (err) {
+        console.error('Error querying for similar vectors:', err.message);
+      }
+      
       return res.status(404).json({ error: 'Vector not found' });
     }
 
@@ -1300,6 +1490,23 @@ app.get('/api/orgs/:orgId/vectors/:vectorId', authenticateToken, verifyOrgMember
       return res.status(403).json({ error: 'No access to this vector' });
     }
 
+    // Query to get total chunks for this document
+    let totalChunks = 1;
+    try {
+      const queryResult = await index.namespace(namespace).query({
+        vector: vector.values || Array(1024).fill(0), // Use actual vector or dummy (1024 dimension)
+        topK: 10000, // High number to get all chunks
+        filter: { doc_id: metadata.doc_id },
+        includeMetadata: false,
+        includeValues: false,
+      });
+      totalChunks = queryResult.matches?.length || 1;
+    } catch (err) {
+      console.error('Error counting chunks:', err);
+      // Fall back to parsing from vector ID (format: doc_xxx:chunk_no)
+      // We can't easily get total, so just show the current chunk
+    }
+
     res.json({
       success: true,
       vectorId,
@@ -1309,6 +1516,7 @@ app.get('/api/orgs/:orgId/vectors/:vectorId', authenticateToken, verifyOrgMember
         filename: metadata.filename,
         filepath: metadata.filepath || metadata.path,
         chunkNo: metadata.chunk_no || 0,
+        totalChunks: totalChunks,
         mimeType: metadata.mime || 'text/plain',
         docId: metadata.doc_id,
         folderId: metadata.folder_id,
@@ -1374,29 +1582,29 @@ app.post('/delete-vectors', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// Conversation Management
+// Chat Management
 // ============================================
 
 /**
- * POST /api/orgs/:orgId/conversations
- * Create a new conversation
+ * POST /api/orgs/:orgId/chats
+ * Create a new chat
  */
-app.post('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembership, async (req, res) => {
+app.post('/api/orgs/:orgId/chats', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
   const { userId } = req.user;
   const { title, description, folderIds = [], fileIds = [], metadata = {} } = req.body;
 
-  const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   try {
     await pool.query(
-      `INSERT INTO conversations (conversation_id, org_id, user_id, title, description, folder_ids, file_ids, metadata)
+      `INSERT INTO chats (chat_id, org_id, user_id, title, description, folder_ids, file_ids, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        conversationId, 
+        chatId, 
         orgId, 
         userId, 
-        title || 'New Conversation', 
+        title || 'New Chat', 
         description, 
         JSON.stringify(folderIds || []), 
         JSON.stringify(fileIds || []), 
@@ -1406,11 +1614,11 @@ app.post('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembershi
 
     res.status(201).json({
       success: true,
-      conversation: {
-        conversationId,
+      chat: {
+        chatId,
         orgId,
         userId,
-        title: title || 'New Conversation',
+        title: title || 'New Chat',
         description,
         folderIds,
         fileIds,
@@ -1419,26 +1627,26 @@ app.post('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembershi
       },
     });
   } catch (error) {
-    console.error('Error creating conversation:', error);
-    res.status(500).json({ error: 'Failed to create conversation' });
+    console.error('Error creating chat:', error);
+    res.status(500).json({ error: 'Failed to create chat' });
   }
 });
 
 /**
- * GET /api/orgs/:orgId/conversations
- * List user's conversations
+ * GET /api/orgs/:orgId/chats
+ * List user's chats
  */
-app.get('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembership, async (req, res) => {
+app.get('/api/orgs/:orgId/chats', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
   const { userId } = req.user;
   const { archived = 'false', limit = 50, offset = 0 } = req.query;
 
   try {
-    // Get conversations owned by user or shared with user
-    const [conversations] = await pool.query(
+    // Get chats owned by user or shared with user
+    const [chats] = await pool.query(
       `SELECT DISTINCT c.*
-       FROM conversations c
-       LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+       FROM chats c
+       LEFT JOIN chat_shares cs ON c.chat_id = cs.chat_id
        LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id
        WHERE c.org_id = ?
          AND c.archived = ?
@@ -1450,8 +1658,8 @@ app.get('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembership
 
     res.json({
       success: true,
-      conversations: conversations.map(c => ({
-        conversationId: c.conversation_id,
+      chats: chats.map(c => ({
+        chatId: c.chat_id,
         title: c.title,
         description: c.description,
         messageCount: c.message_count,
@@ -1464,88 +1672,91 @@ app.get('/api/orgs/:orgId/conversations', authenticateToken, verifyOrgMembership
       pagination: {
         limit: parseInt(limit),
         offset: parseInt(offset),
-        hasMore: conversations.length === parseInt(limit),
+        hasMore: chats.length === parseInt(limit),
       },
     });
   } catch (error) {
-    console.error('Error listing conversations:', error);
-    res.status(500).json({ error: 'Failed to list conversations' });
+    console.error('Error listing chats:', error);
+    res.status(500).json({ error: 'Failed to list chats' });
   }
 });
 
 /**
- * GET /api/conversations/:conversationId
- * Get conversation details
+ * GET /api/chats/:chatId
+ * Get chat details
  */
-app.get('/api/conversations/:conversationId', authenticateToken, async (req, res) => {
-  const { conversationId } = req.params;
+app.get('/api/chats/:chatId', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
   const { userId } = req.user;
 
   try {
-    // Check if user has access to this conversation
-    const [conversations] = await pool.query(
+    // Check if user has access to this chat
+    const [chats] = await pool.query(
       `SELECT c.*, 
               (c.user_id = ?) AS is_owner,
               cs.permission AS shared_permission
-       FROM conversations c
-       LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+       FROM chats c
+       LEFT JOIN chat_shares cs ON c.chat_id = cs.chat_id
        LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id
-       WHERE c.conversation_id = ?
+       WHERE c.chat_id = ?
          AND (c.user_id = ? OR tm.user_id = ? OR cs.shared_with_type = 'org')
        LIMIT 1`,
-      [userId, conversationId, userId, userId]
+      [userId, chatId, userId, userId]
     );
 
-    if (conversations.length === 0) {
-      return res.status(404).json({ error: 'Conversation not found or access denied' });
+    if (chats.length === 0) {
+      return res.status(404).json({ error: 'Chat not found or access denied' });
     }
 
-    const conversation = conversations[0];
+    const chat = chats[0];
 
     // Get tags
     const [tags] = await pool.query(
-      'SELECT tag FROM conversation_tags WHERE conversation_id = ?',
-      [conversationId]
+      'SELECT tag FROM chat_tags WHERE chat_id = ?',
+      [chatId]
     );
 
-    // Get participants (for collaborative conversations)
+    // Get participants (for collaborative chats)
     const [participants] = await pool.query(
       `SELECT cp.user_id, u.name, u.email, cp.message_count, cp.first_message_at, cp.last_message_at
-       FROM conversation_participants cp
+       FROM chat_participants cp
        JOIN users u ON cp.user_id = u.user_id
-       WHERE cp.conversation_id = ?
+       WHERE cp.chat_id = ?
        ORDER BY cp.first_message_at ASC`,
-      [conversationId]
+      [chatId]
     );
 
     // Helper function to safely parse JSON
     const safeJSONParse = (value, defaultValue = null) => {
       if (!value || value === '' || value === 'null') return defaultValue;
+      // If it's already an object/array, return it directly (MySQL auto-parses JSON columns)
+      if (typeof value === 'object') return value;
+      // Otherwise try to parse the string
       try {
         return JSON.parse(value);
       } catch (e) {
-        console.error('Failed to parse JSON:', value, e.message);
+        console.error('Failed to parse JSON from database - type:', typeof value);
         return defaultValue;
       }
     };
 
     res.json({
       success: true,
-      conversation: {
-        conversationId: conversation.conversation_id,
-        orgId: conversation.org_id,
-        userId: conversation.user_id,
-        title: conversation.title,
-        description: conversation.description,
-        folderIds: safeJSONParse(conversation.folder_ids, []),
-        fileIds: safeJSONParse(conversation.file_ids, []),
-        messageCount: conversation.message_count,
-        totalTokens: conversation.total_tokens,
-        lastMessageAt: conversation.last_message_at,
-        createdAt: conversation.created_at,
-        archived: conversation.archived,
-        isOwner: conversation.is_owner === 1,
-        permission: conversation.shared_permission || 'owner',
+      chat: {
+        chatId: chat.chat_id,
+        orgId: chat.org_id,
+        userId: chat.user_id,
+        title: chat.title,
+        description: chat.description,
+        folderIds: safeJSONParse(chat.folder_ids, []),
+        fileIds: safeJSONParse(chat.file_ids, []),
+        messageCount: chat.message_count,
+        totalTokens: chat.total_tokens,
+        lastMessageAt: chat.last_message_at,
+        createdAt: chat.created_at,
+        archived: chat.archived,
+        isOwner: chat.is_owner === 1,
+        permission: chat.shared_permission || 'owner',
         tags: tags.map(t => t.tag),
         participants: participants.map(p => ({
           userId: p.user_id,
@@ -1555,21 +1766,21 @@ app.get('/api/conversations/:conversationId', authenticateToken, async (req, res
           firstMessageAt: p.first_message_at,
           lastMessageAt: p.last_message_at
         })),
-        metadata: safeJSONParse(conversation.metadata, {}),
+        metadata: safeJSONParse(chat.metadata, {}),
       },
     });
   } catch (error) {
-    console.error('Error getting conversation:', error);
-    res.status(500).json({ error: 'Failed to get conversation' });
+    console.error('Error getting chat:', error);
+    res.status(500).json({ error: 'Failed to get chat' });
   }
 });
 
 /**
- * PUT /api/conversations/:conversationId
- * Update conversation details
+ * PUT /api/chats/:chatId
+ * Update chat details
  */
-app.put('/api/conversations/:conversationId', authenticateToken, async (req, res) => {
-  const { conversationId } = req.params;
+app.put('/api/chats/:chatId', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
   const { userId } = req.user;
   const { title, description, archived, folderIds, fileIds, tags } = req.body;
 
@@ -1579,17 +1790,17 @@ app.put('/api/conversations/:conversationId', authenticateToken, async (req, res
       `SELECT c.user_id,
               cs.permission,
               tm.user_id as team_member
-       FROM conversations c
-       LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+       FROM chats c
+       LEFT JOIN chat_shares cs ON c.chat_id = cs.chat_id
        LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id AND tm.user_id = ?
-       WHERE c.conversation_id = ?
+       WHERE c.chat_id = ?
          AND (c.user_id = ? OR cs.shared_with_id = ? OR tm.user_id = ?)
        LIMIT 1`,
-      [userId, conversationId, userId, userId, userId]
+      [userId, chatId, userId, userId, userId]
     );
 
     if (access.length === 0) {
-      return res.status(404).json({ error: 'Conversation not found' });
+      return res.status(404).json({ error: 'Chat not found' });
     }
 
     const isOwner = access[0].user_id === userId;
@@ -1597,7 +1808,7 @@ app.put('/api/conversations/:conversationId', authenticateToken, async (req, res
 
     // Only owner can update title, description, archived, tags
     if (!isOwner && (title !== undefined || description !== undefined || archived !== undefined || tags !== undefined)) {
-      return res.status(403).json({ error: 'Only owner can update conversation metadata (title, description, archive, tags)' });
+      return res.status(403).json({ error: 'Only owner can update chat metadata (title, description, archive, tags)' });
     }
 
     // Both owner and write users can update folderIds/fileIds (query scope)
@@ -1631,72 +1842,72 @@ app.put('/api/conversations/:conversationId', authenticateToken, async (req, res
     }
 
     if (updates.length > 0) {
-      values.push(conversationId);
+      values.push(chatId);
       await pool.query(
-        `UPDATE conversations SET ${updates.join(', ')} WHERE conversation_id = ?`,
+        `UPDATE chats SET ${updates.join(', ')} WHERE chat_id = ?`,
         values
       );
     }
 
     // Update tags if provided
     if (tags !== undefined && Array.isArray(tags)) {
-      await pool.query('DELETE FROM conversation_tags WHERE conversation_id = ?', [conversationId]);
+      await pool.query('DELETE FROM chat_tags WHERE chat_id = ?', [chatId]);
       
       if (tags.length > 0) {
-        const tagValues = tags.map(tag => [conversationId, tag]);
+        const tagValues = tags.map(tag => [chatId, tag]);
         await pool.query(
-          'INSERT INTO conversation_tags (conversation_id, tag) VALUES ?',
+          'INSERT INTO chat_tags (chat_id, tag) VALUES ?',
           [tagValues]
         );
       }
     }
 
-    res.json({ success: true, message: 'Conversation updated successfully' });
+    res.json({ success: true, message: 'Chat updated successfully' });
   } catch (error) {
-    console.error('Error updating conversation:', error);
-    res.status(500).json({ error: 'Failed to update conversation' });
+    console.error('Error updating chat:', error);
+    res.status(500).json({ error: 'Failed to update chat' });
   }
 });
 
 /**
- * DELETE /api/conversations/:conversationId
- * Delete conversation
+ * DELETE /api/chats/:chatId
+ * Delete chat
  */
-app.delete('/api/conversations/:conversationId', authenticateToken, async (req, res) => {
-  const { conversationId } = req.params;
+app.delete('/api/chats/:chatId', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
   const { userId } = req.user;
 
   try {
     // Verify ownership
-    const [conversations] = await pool.query(
-      'SELECT user_id FROM conversations WHERE conversation_id = ?',
-      [conversationId]
+    const [chats] = await pool.query(
+      'SELECT user_id FROM chats WHERE chat_id = ?',
+      [chatId]
     );
 
-    if (conversations.length === 0) {
-      return res.status(404).json({ error: 'Conversation not found' });
+    if (chats.length === 0) {
+      return res.status(404).json({ error: 'Chat not found' });
     }
 
-    if (conversations[0].user_id !== userId) {
-      return res.status(403).json({ error: 'Only owner can delete conversation' });
+    if (chats[0].user_id !== userId) {
+      return res.status(403).json({ error: 'Only owner can delete chat' });
     }
 
-    // Delete conversation (cascade will delete messages, shares, tags)
-    await pool.query('DELETE FROM conversations WHERE conversation_id = ?', [conversationId]);
+    // Delete chat (cascade will delete messages, shares, tags)
+    await pool.query('DELETE FROM chats WHERE chat_id = ?', [chatId]);
 
-    res.json({ success: true, message: 'Conversation deleted successfully' });
+    res.json({ success: true, message: 'Chat deleted successfully' });
   } catch (error) {
-    console.error('Error deleting conversation:', error);
-    res.status(500).json({ error: 'Failed to delete conversation' });
+    console.error('Error deleting chat:', error);
+    res.status(500).json({ error: 'Failed to delete chat' });
   }
 });
 
 /**
- * POST /api/conversations/:conversationId/messages
- * Add message to conversation
+ * POST /api/chats/:chatId/messages
+ * Add message to chat
  */
-app.post('/api/conversations/:conversationId/messages', authenticateToken, async (req, res) => {
-  const { conversationId } = req.params;
+app.post('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
   const { userId } = req.user;
   const { role, content, tokens = 0, citedSources = [], contextUsed = [], model, temperature, metadata = {} } = req.body;
 
@@ -1711,29 +1922,29 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
   const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   try {
-    // Verify access to conversation
-    const [conversations] = await pool.query(
+    // Verify access to chat
+    const [chats] = await pool.query(
       `SELECT c.user_id, c.message_count, c.total_tokens
-       FROM conversations c
-       LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+       FROM chats c
+       LEFT JOIN chat_shares cs ON c.chat_id = cs.chat_id
        LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id
-       WHERE c.conversation_id = ?
+       WHERE c.chat_id = ?
          AND (c.user_id = ? OR tm.user_id = ? OR cs.shared_with_type = 'org')
        LIMIT 1`,
-      [conversationId, userId, userId]
+      [chatId, userId, userId]
     );
 
-    if (conversations.length === 0) {
-      return res.status(404).json({ error: 'Conversation not found or access denied' });
+    if (chats.length === 0) {
+      return res.status(404).json({ error: 'Chat not found or access denied' });
     }
 
     // Insert message with created_by
     await pool.query(
-      `INSERT INTO messages (message_id, conversation_id, role, content, created_by, tokens, cited_sources, context_used, model, temperature, metadata)
+      `INSERT INTO messages (message_id, chat_id, role, content, created_by, tokens, cited_sources, context_used, model, temperature, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         messageId, 
-        conversationId, 
+        chatId, 
         role, 
         content, 
         userId, 
@@ -1746,31 +1957,31 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
       ]
     );
 
-    // Update conversation stats
+    // Update chat stats
     await pool.query(
-      `UPDATE conversations 
+      `UPDATE chats 
        SET message_count = message_count + 1,
            total_tokens = total_tokens + ?,
            last_message_at = NOW()
-       WHERE conversation_id = ?`,
-      [tokens, conversationId]
+       WHERE chat_id = ?`,
+      [tokens, chatId]
     );
 
-    // Track participant (for collaborative conversations)
+    // Track participant (for collaborative chats)
     await pool.query(
-      `INSERT INTO conversation_participants (conversation_id, user_id, first_message_at, last_message_at, message_count)
+      `INSERT INTO chat_participants (chat_id, user_id, first_message_at, last_message_at, message_count)
        VALUES (?, ?, NOW(), NOW(), 1)
        ON DUPLICATE KEY UPDATE 
          last_message_at = NOW(),
          message_count = message_count + 1`,
-      [conversationId, userId]
+      [chatId, userId]
     );
 
     res.status(201).json({
       success: true,
       message: {
         messageId,
-        conversationId,
+        chatId,
         role,
         content,
         tokens,
@@ -1785,69 +1996,86 @@ app.post('/api/conversations/:conversationId/messages', authenticateToken, async
 });
 
 /**
- * GET /api/conversations/:conversationId/messages
- * Get conversation messages
+ * GET /api/chats/:chatId/messages
+ * Get chat messages
  */
-app.get('/api/conversations/:conversationId/messages', authenticateToken, async (req, res) => {
-  const { conversationId } = req.params;
+app.get('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
   const { userId } = req.user;
   const { limit = 100, offset = 0 } = req.query;
 
   try {
-    // Verify access to conversation
-    const [conversations] = await pool.query(
-      `SELECT 1 FROM conversations c
-       LEFT JOIN conversation_shares cs ON c.conversation_id = cs.conversation_id
+    // Verify access to chat
+    const [chats] = await pool.query(
+      `SELECT 1 FROM chats c
+       LEFT JOIN chat_shares cs ON c.chat_id = cs.chat_id
        LEFT JOIN team_members tm ON cs.shared_with_type = 'team' AND cs.shared_with_id = tm.team_id
-       WHERE c.conversation_id = ?
+       WHERE c.chat_id = ?
          AND (c.user_id = ? OR tm.user_id = ? OR cs.shared_with_type = 'org')
        LIMIT 1`,
-      [conversationId, userId, userId]
+      [chatId, userId, userId]
     );
 
-    if (conversations.length === 0) {
-      return res.status(404).json({ error: 'Conversation not found or access denied' });
+    if (chats.length === 0) {
+      return res.status(404).json({ error: 'Chat not found or access denied' });
     }
 
-    // Get messages with user info for collaborative conversations
+    // Get messages with user info for collaborative chats
     const [messages] = await pool.query(
       `SELECT m.*, u.name as created_by_name, u.email as created_by_email
        FROM messages m
        LEFT JOIN users u ON m.created_by = u.user_id
-       WHERE m.conversation_id = ?
+       WHERE m.chat_id = ?
        ORDER BY m.created_at ASC
        LIMIT ? OFFSET ?`,
-      [conversationId, parseInt(limit), parseInt(offset)]
+      [chatId, parseInt(limit), parseInt(offset)]
     );
 
     // Helper function to safely parse JSON
     const safeJSONParse = (value, defaultValue = null) => {
       if (!value || value === '' || value === 'null') return defaultValue;
+      // If it's already an object/array, return it directly (MySQL auto-parses JSON columns)
+      if (typeof value === 'object') return value;
+      // Otherwise try to parse the string
       try {
         return JSON.parse(value);
       } catch (e) {
-        console.error('Failed to parse JSON:', value, e.message);
+        console.error('Failed to parse JSON from database - type:', typeof value);
         return defaultValue;
       }
     };
 
     res.json({
       success: true,
-      messages: messages.map(m => ({
-        messageId: m.message_id,
-        role: m.role,
-        content: m.content,
-        createdBy: m.created_by,
-        createdByName: m.created_by_name,
-        createdByEmail: m.created_by_email,
-        tokens: m.tokens,
-        citedSources: safeJSONParse(m.cited_sources, []),
-        contextUsed: safeJSONParse(m.context_used, []),
-        model: m.model,
-        temperature: m.temperature,
-        createdAt: m.created_at,
-        metadata: safeJSONParse(m.metadata, {}),
-      })),
+      messages: messages.map(m => {
+        // Ensure citedSources is always an array
+        let citedSources = safeJSONParse(m.cited_sources, []);
+        if (typeof citedSources === 'number') {
+          // If database has a count instead of array, use empty array
+          console.warn('⚠️ Database has cited_sources as number (count), expected array:', citedSources);
+          citedSources = [];
+        } else if (!Array.isArray(citedSources)) {
+          // If it's not an array, convert to array or use empty array
+          console.warn('⚠️ Database has cited_sources in unexpected format:', typeof citedSources, citedSources);
+          citedSources = [];
+        }
+        
+        return {
+          messageId: m.message_id,
+          role: m.role,
+          content: m.content,
+          createdBy: m.created_by,
+          createdByName: m.created_by_name,
+          createdByEmail: m.created_by_email,
+          tokens: m.tokens,
+          citedSources: citedSources,
+          contextUsed: safeJSONParse(m.context_used, []),
+          model: m.model,
+          temperature: m.temperature,
+          createdAt: m.created_at,
+          metadata: safeJSONParse(m.metadata, {}),
+        };
+      }),
       pagination: {
         limit: parseInt(limit),
         offset: parseInt(offset),
@@ -1861,11 +2089,11 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
 });
 
 /**
- * POST /api/conversations/:conversationId/share
- * Share conversation with team or user
+ * POST /api/chats/:chatId/share
+ * Share chat with team or user
  */
-app.post('/api/conversations/:conversationId/share', authenticateToken, async (req, res) => {
-  const { conversationId } = req.params;
+app.post('/api/chats/:chatId/share', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
   const { userId } = req.user;
   const { shareWith, shareType, permission = 'read' } = req.body;
 
@@ -1879,68 +2107,68 @@ app.post('/api/conversations/:conversationId/share', authenticateToken, async (r
 
   try {
     // Verify ownership
-    const [conversations] = await pool.query(
-      'SELECT user_id, org_id FROM conversations WHERE conversation_id = ?',
-      [conversationId]
+    const [chats] = await pool.query(
+      'SELECT user_id, org_id FROM chats WHERE chat_id = ?',
+      [chatId]
     );
 
-    if (conversations.length === 0) {
-      return res.status(404).json({ error: 'Conversation not found' });
+    if (chats.length === 0) {
+      return res.status(404).json({ error: 'Chat not found' });
     }
 
-    if (conversations[0].user_id !== userId) {
-      return res.status(403).json({ error: 'Only owner can share conversation' });
+    if (chats[0].user_id !== userId) {
+      return res.status(403).json({ error: 'Only owner can share chat' });
     }
 
     // Insert or update share
     await pool.query(
-      `INSERT INTO conversation_shares (conversation_id, shared_with_type, shared_with_id, permission, shared_by)
+      `INSERT INTO chat_shares (chat_id, shared_with_type, shared_with_id, permission, shared_by)
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE permission = ?, shared_at = NOW()`,
-      [conversationId, shareType, shareWith, permission, userId, permission]
+      [chatId, shareType, shareWith, permission, userId, permission]
     );
 
-    res.json({ success: true, message: 'Conversation shared successfully' });
+    res.json({ success: true, message: 'Chat shared successfully' });
   } catch (error) {
-    console.error('Error sharing conversation:', error);
-    res.status(500).json({ error: 'Failed to share conversation' });
+    console.error('Error sharing chat:', error);
+    res.status(500).json({ error: 'Failed to share chat' });
   }
 });
 
 /**
- * DELETE /api/conversations/:conversationId/share
- * Unshare conversation
+ * DELETE /api/chats/:chatId/share
+ * Unshare chat
  */
-app.delete('/api/conversations/:conversationId/share', authenticateToken, async (req, res) => {
-  const { conversationId } = req.params;
+app.delete('/api/chats/:chatId/share', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
   const { userId } = req.user;
   const { shareWith, shareType } = req.body;
 
   try {
     // Verify ownership
-    const [conversations] = await pool.query(
-      'SELECT user_id FROM conversations WHERE conversation_id = ?',
-      [conversationId]
+    const [chats] = await pool.query(
+      'SELECT user_id FROM chats WHERE chat_id = ?',
+      [chatId]
     );
 
-    if (conversations.length === 0) {
-      return res.status(404).json({ error: 'Conversation not found' });
+    if (chats.length === 0) {
+      return res.status(404).json({ error: 'Chat not found' });
     }
 
-    if (conversations[0].user_id !== userId) {
-      return res.status(403).json({ error: 'Only owner can unshare conversation' });
+    if (chats[0].user_id !== userId) {
+      return res.status(403).json({ error: 'Only owner can unshare chat' });
     }
 
     // Delete share
     await pool.query(
-      'DELETE FROM conversation_shares WHERE conversation_id = ? AND shared_with_type = ? AND shared_with_id = ?',
-      [conversationId, shareType, shareWith]
+      'DELETE FROM chat_shares WHERE chat_id = ? AND shared_with_type = ? AND shared_with_id = ?',
+      [chatId, shareType, shareWith]
     );
 
-    res.json({ success: true, message: 'Conversation unshared successfully' });
+    res.json({ success: true, message: 'Chat unshared successfully' });
   } catch (error) {
-    console.error('Error unsharing conversation:', error);
-    res.status(500).json({ error: 'Failed to unshare conversation' });
+    console.error('Error unsharing chat:', error);
+    res.status(500).json({ error: 'Failed to unshare chat' });
   }
 });
 
