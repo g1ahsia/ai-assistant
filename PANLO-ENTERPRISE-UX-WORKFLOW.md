@@ -213,69 +213,189 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ### Step 3: Main Application
 
-#### **Screen 5: Main Chat Interface** (Matches Current Panlo UI)
+#### **Screen 5: Main Application Interface** (Three-Panel Layout)
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Panlo                                                   [⚙️Settings] [📊]│
-├──────────┬──────────────────────────────────────────────────────────────┤
-│          │                                                               │
-│  Watch 1 │                                                               │
-│  Smart 0 │   Hi! I'm Panlo, your AI assistant.                         │
-│          │   Ask me anything about your files.                          │
-│ ┌──────┐│                                                               │
-│ │+ Add ││                                                               │
-│ └──────┘│                                                               │
-│          │                                                               │
-│ 📁 Public│                                                               │
-│          │                                                               │
-│  • Docs  │                                                               │
-│  • Legal │                                                               │
-│          │                                                               │
-│ 📁 Your  │                                                               │
-│  Folders │                                                               │
-│          │                                                               │
-│  • test  │                                                               │
-│  • work  │                                                               │
-│  • docs  │                                                               │
-│          │                                                               │
-│ 📁 Teams │                                                               │
-│          │                                                               │
-│  Eng.    │                                                               │
-│  • code  │                                                               │
-│  • arch  │                                                               │
-│          │                                                               │
-│  Finance │                                                               │
-│  • Q3    │                                                               │
-│          │                                                               │
-│          │                                                               │
-│          │  ┌────────────────────────────────────────────────────────┐ │
-│          │  │ Ask anything about your files...                  [➤] │ │
-│          │  └────────────────────────────────────────────────────────┘ │
-└──────────┴──────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│  Panlo                                                             [⚙️Settings] [📊]   │
+├─────────┬──────────────────────────┬───────────────────────────────────────────────────┤
+│         │                          │                                                    │
+│ Folders │  📄 Files      💬 Chats  │   Detail View                                     │
+│ Files   │                          │                                                    │
+│ Chats   │  Search...    [Filters] │   • Click a file to view content                  │
+│         │                          │   • Click a chat to view history                  │
+│ ┌─────┐│  ┌──────────────────────┐│                                                    │
+│ │+ Add││  │ 📄 Q3-Report.pdf     ││                                                    │
+│ └─────┘│  │ Finance • 2MB        ││                                                    │
+│         │  │ Modified 2h ago      ││                                                    │
+│📁Public │  └──────────────────────┘│                                                    │
+│ • Docs  │  ┌──────────────────────┐│                                                    │
+│ • Legal │  │ 📄 Budget-2024.xlsx  ││   Hi! I'm Panlo, your AI assistant.              │
+│         │  │ Finance • 1.5MB      ││   Ask me anything about your files.              │
+│📁Your   │  │ Modified 1d ago      ││                                                    │
+│ • test  │  └──────────────────────┘│                                                    │
+│ • work  │  ┌──────────────────────┐│                                                    │
+│ • docs  │  │ 💬 Q3 Analysis       ││                                                    │
+│         │  │ 12 messages          ││                                                    │
+│📁Teams  │  │ Last: 30m ago        ││                                                    │
+│ Eng.    │  └──────────────────────┘│                                                    │
+│ • code  │                          │                                                    │
+│ • arch  │  ... more items ...     │                                                    │
+│         │                          │                                                    │
+│ Finance │                          │                                                    │
+│ • Q3    │                          │                                                    │
+│         │                          │  ┌──────────────────────────────────────────────┐│
+│         │                          │  │ Ask anything about your files...        [➤] ││
+│         │                          │  └──────────────────────────────────────────────┘│
+└─────────┴──────────────────────────┴───────────────────────────────────────────────────┘
 ```
 
-**Left Panel Structure:**
-1. **Watch / Smart Tabs** - Switch between modes
-2. **+ Add Button** - Add new watch folder
-3. **📁 Public Folders** - Org-wide visibility folders
-4. **📁 Your Folders** - Personal/private watch folders
-5. **📁 Teams** - Team-shared folders organized by team
+**Three-Panel Layout:**
+
+**Left Panel (Navigation):**
+1. **Folders Tab** - Browse watch/smart folders (default view)
+2. **Files Tab** - Browse all indexed files
+3. **Chats Tab** - Browse saved chat conversations
+4. **+ Add Button** - Add new watch folder
+
+**Middle Panel (List View):**
+- **Files Tab**: Shows list of files with metadata
+- **Chats Tab**: Shows list of saved chats
+- Search and filter controls
+- Switches content based on active tab
+
+**Right Panel (Detail View):**
+- **Unified detail view** that displays:
+  - File content when a file is selected
+  - Chat history when a chat is selected
+  - AI chat interface when nothing is selected (default)
 
 **Top Right Icons:**
 - ⚙️ Settings
 - 📊 Stats/Activity
 
-**Chat Area:**
-- Clean, simple chat interface
-- Welcome message
-- Input at bottom
+---
+
+#### **Screen 5a: Detail View - File Content** (Click a file from middle panel)
+```
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│  Panlo                                                             [⚙️Settings] [📊]   │
+├─────────┬──────────────────────────┬───────────────────────────────────────────────────┤
+│         │                          │                                                    │
+│ Folders │  📄 Files      💬 Chats  │   📄 Q3-2024-Financial-Report.pdf                │
+│ Files   │                          │   Finance Team • 2.3 MB • Modified 2h ago         │
+│ Chats   │  Search...    [Filters] │                                                    │
+│         │                          │   [Download] [Share] [Ask AI about this file]     │
+│ ┌─────┐│  ┌──────────────────────┐│   ─────────────────────────────────────────────   │
+│ │+ Add││  │ 📄 Q3-Report.pdf   ◄ ││                                                    │
+│ └─────┘│  │ Finance • 2MB        ││   Q3 2024 Financial Report                        │
+│         │  │ Modified 2h ago      ││   Acme Corporation                                │
+│📁Public │  └──────────────────────┘│                                                    │
+│ • Docs  │  ┌──────────────────────┐│   Executive Summary                               │
+│         │  │ 📄 Budget-2024.xlsx  ││                                                    │
+│📁Your   │  │ Finance • 1.5MB      ││   Our Q3 2024 performance exceeded               │
+│ • test  │  │ Modified 1d ago      ││   expectations with total revenue of $2.4M,      │
+│ • work  │  └──────────────────────┘│   representing a 15% increase over Q2.           │
+│         │  ┌──────────────────────┐│                                                    │
+│📁Teams  │  │ 💬 Q3 Analysis       ││   Revenue Breakdown:                              │
+│ Eng.    │  │ 12 messages          ││   • Product A: $1,200,000 (50%)                   │
+│ Finance │  │ Last: 30m ago        ││   • Product B: $800,000 (33%)                     │
+│ • Q3    │  └──────────────────────┘│   • Services: $400,000 (17%)                      │
+│         │                          │                                                    │
+│         │  ... more files ...     │   Key Highlights:                                 │
+│         │                          │   - Sales growth driven by Product A              │
+│         │                          │   - New client acquisitions: 12                   │
+│         │                          │   - Customer retention: 94%                       │
+│         │                          │                                                    │
+│         │                          │   [Page 1 of 8]                     [Next Page >] │
+│         │                          │                                                    │
+└─────────┴──────────────────────────┴───────────────────────────────────────────────────┘
+```
+
+**File Detail View Features:**
+- **File header**: Name, folder, size, last modified
+- **Quick actions**: Download, Share, Ask AI about this file
+- **Content display**: Shows file content (text, PDF preview, etc.)
+- **Navigation**: Page controls for multi-page documents
+- **Selected indicator**: ◄ shows which file is active in middle panel
+
+**API Calls:**
+- `GET /api/orgs/{orgId}/documents/{docId}` - Get file metadata
+- `GET /api/orgs/{orgId}/documents/{docId}/content` - Get file content
 
 ---
 
-#### **Screen 6: Active Chat**
+#### **Screen 5b: Detail View - Chat History** (Click a chat from middle panel)
+```
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│  Panlo                                                             [⚙️Settings] [📊]   │
+├─────────┬──────────────────────────┬───────────────────────────────────────────────────┤
+│         │                          │                                                    │
+│ Folders │  📄 Files      💬 Chats  │   💬 Q3 Revenue Analysis                          │
+│ Files   │                          │   Created: 2 days ago • 12 messages • You + AI    │
+│ Chats   │  Search...    [Filters] │                                                    │
+│         │                          │   [Continue Chat] [Share] [Delete] [···]          │
+│ ┌─────┐│  ┌──────────────────────┐│   ─────────────────────────────────────────────   │
+│ │+ Add││  │ 💬 Budget Review     ││                                                    │
+│ └─────┘│  │ 8 messages           ││   You (2 days ago)                                │
+│         │  │ Last: 1h ago         ││   What are the Q3 revenue numbers?               │
+│📁Public │  └──────────────────────┘│                                                    │
+│ • Docs  │  ┌──────────────────────┐│   ─────────────────────────────────────────────   │
+│         │  │ 💬 Q3 Analysis     ◄ ││                                                    │
+│📁Your   │  │ 12 messages          ││   Panlo (2 days ago)                              │
+│ • test  │  │ Last: 30m ago        ││   Based on the documents in your "Finance"       │
+│ • work  │  └──────────────────────┘│   folder:                                         │
+│         │  ┌──────────────────────┐│                                                    │
+│📁Teams  │  │ 💬 Code Review       ││   Q3 2024 Revenue: $2.4M                          │
+│ Eng.    │  │ 25 messages          ││   • Product A: $1.2M                              │
+│ Finance │  │ Last: 2d ago         ││   • Product B: $800K                              │
+│ • Q3    │  └──────────────────────┘│   • Services: $400K                               │
+│         │                          │                                                    │
+│         │  ... more chats ...     │   📎 Sources:                                      │
+│         │                          │   • Q3-2024-Financial-Report.pdf (p.3)           │
+│         │                          │   • Revenue-Summary-Sept.xlsx                     │
+│         │                          │                                                    │
+│         │                          │   [Add Context]  [Copy]                           │
+│         │                          │                                                    │
+│         │                          │   ─────────────────────────────────────────────   │
+│         │                          │                                                    │
+│         │                          │   You (2 days ago)                                │
+│         │                          │   How does this compare to Q2?                    │
+│         │                          │                                                    │
+│         │                          │   ─────────────────────────────────────────────   │
+│         │                          │                                                    │
+│         │                          │   Panlo (2 days ago)                              │
+│         │                          │   Q3 revenue increased by 15% compared to Q2...   │
+│         │                          │                                                    │
+│         │                          │   ... 8 more messages ...                         │
+│         │                          │                                                    │
+│         │                          │  ┌──────────────────────────────────────────────┐│
+│         │                          │  │ Continue this chat...                   [➤] ││
+│         │                          │  └──────────────────────────────────────────────┘│
+└─────────┴──────────────────────────┴───────────────────────────────────────────────────┘
+```
+
+**Chat Detail View Features:**
+- **Chat header**: Title, creation date, message count, participants
+- **Quick actions**: Continue Chat, Share, Delete, More options [···]
+- **Message history**: Full conversation thread with timestamps
+- **Source citations**: Shows which files were referenced
+- **Continue input**: Type to add to existing conversation
+- **Selected indicator**: ◄ shows which chat is active in middle panel
+
+**API Calls:**
+- `GET /api/chats/{chatId}` - Get chat metadata
+- `GET /api/chats/{chatId}/messages` - Get all messages
+- `POST /api/chats/{chatId}/messages` - Continue conversation
+
+---
+
+#### **Screen 6: Simplified Chat View** (Alternative: Two-Panel for Focus Mode)
+
+**Note:** The three-panel layout (Screen 5) is the default view. Users can optionally toggle to a simplified two-panel view when they want to focus on chatting without browsing files/chats.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Panlo                                                   [⚙️Settings] [📊]│
+│  Panlo                                          [≡ Show Browser] [⚙️] [📊]│
 ├──────────┬──────────────────────────────────────────────────────────────┤
 │          │                                                               │
 │  Watch 1 │  You                                                         │
@@ -295,7 +415,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 │          │  • Q3-2024-Financial-Report.pdf (p.3)                       │
 │ 📁 Teams │  • Revenue-Summary-Sept.xlsx                                 │
 │  Eng.    │                                                               │
-│  • code  │  [Add Context]  [Copy]  [Share]                             │
+│  • code  │  [Add Context]  [Copy]  [Share]  [Save Chat]                │
 │          │                                                               │
 │  Finance │                                                               │
 │  • Q3    │  ─────────────────────────────────────────────────────────   │
@@ -313,19 +433,22 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 ```
 
 **Features:**
-- Clean chat flow
+- Clean chat flow focused on conversation
 - Automatic source citations
-- Quick actions (Add Context, Copy, Share)
+- Quick actions: Add Context, Copy, Share, Save Chat
+- Click [≡ Show Browser] to expand to three-panel view
 - Contextual search based on selected folder in left panel
 - Follow-up questions maintain context
 
 **API Call:**
 - `POST /api/orgs/{orgId}/chat`
+- `POST /api/orgs/{orgId}/chats` (when saving)
 
 **Context Options:**
 - Click folder in left panel → Search only that folder
 - "Add Context" button → Add specific files/folders to query
 - Automatically uses user's team permissions for access control
+- "Save Chat" button → Save conversation for later reference
 
 ---
 
@@ -722,30 +845,72 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ---
 
-#### **Screen 13: Manage Teams (Simple Modal)**
+#### **Screen 13: Teams & Members** (Click "Teams & Members" from Settings)
 ```
 ┌─────────────────────────────────────────────────┐
 │  Teams & Members                       [✕]     │
 ├─────────────────────────────────────────────────┤
 │                                                   │
-│  Your Teams                [+ Create Team]      │
+│  Your Teams (3)            [+ Create Team]      │
 │                                                   │
-│  👥 Engineering (8 members)        [Manage]    │
-│  └─ Lead                                         │
+│  👥 Engineering (8 members)            [···]   │
+│  └─ Role: Lead                                   │
 │                                                   │
-│  👥 Leadership (3 members)         [View]      │
-│  └─ Member                                       │
+│  👥 Leadership (3 members)             [···]   │
+│  └─ Role: Member                                 │
+│                                                   │
+│  👥 Finance (5 members)                [···]   │
+│  └─ Role: Member                                 │
 │                                                   │
 │  ──────────────────────────────────────────────  │
 │                                                   │
+│  Organization Members                            │
 │  [Invite Members to Organization]               │
 │                                                   │
 └─────────────────────────────────────────────────┘
 ```
 
+**Features:**
+- Shows all teams user belongs to
+- Displays role (Lead or Member) for each team
+- [+ Create Team] button to create new teams
+- [···] context menu for team actions
+- [Invite Members] button for org-level invitations
+
+**User Actions:**
+1. **Create Team** → Click [+ Create Team] → Screen 14
+2. **View Team** → Click [···] → Select "View Members" → Screen 15
+3. **Leave Team** → Click [···] → Select "Leave Team" → Screen 16
+4. **Team Settings** → Click [···] → Select "Team Settings" (Lead only)
+
+**API Call:** `GET /api/users/me/teams`
+
 ---
 
-#### **Screen 11: Create Team (Simple)**
+#### **Screen 13a: Team Context Menu** (Click [···] next to team)
+
+**For Team Leads:**
+```
+┌─────────────────────────────┐
+│ • View Members              │
+│ • Team Settings             │
+│ • Leave Team                │
+│ ──────────────────────────  │
+│ • Delete Team               │
+└─────────────────────────────┘
+```
+
+**For Team Members:**
+```
+┌─────────────────────────────┐
+│ • View Members              │
+│ • Leave Team                │
+└─────────────────────────────┘
+```
+
+---
+
+#### **Screen 14: Create Team** (Click [+ Create Team])
 ```
 ┌─────────────────────────────────────────────────┐
 │  Create New Team                       [✕]     │
@@ -770,9 +935,133 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 └─────────────────────────────────────────────────┘
 ```
 
+**Features:**
+- Enter team name (required)
+- Search and select members from organization (optional)
+- Creator automatically becomes team lead
+
+**Workflow:**
+1. Click [+ Create Team] from Teams & Members screen
+2. Enter team name
+3. (Optional) Search and check members to add
+4. Click [Create Team]
+5. ✅ Success → Team created, you're the lead
+6. Returns to Teams & Members screen with new team listed
+
 **API Calls:**
 - `POST /api/orgs/{orgId}/teams`
 - `POST /api/teams/{teamId}/members`
+
+---
+
+#### **Screen 15: Team Detail View** (Click [···] → "View Members")
+```
+┌─────────────────────────────────────────────────────────┐
+│  Engineering Team                            [✕]       │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  👥 8 members                         Your role: Lead    │
+│                                                           │
+│  ──────────────────────────────────────────────────────  │
+│                                                           │
+│  Team Members                        [+ Add Members]    │
+│                                                           │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  👤 Sarah Johnson (You)              Lead  [···]│   │
+│  │     sarah@company.com                            │   │
+│  │                                                   │   │
+│  │  👤 Mike Chen                       Member  [···]│   │
+│  │     mike@company.com                             │   │
+│  │                                                   │   │
+│  │  👤 Lisa Wong                       Member  [···]│   │
+│  │     lisa@company.com                             │   │
+│  │                                                   │   │
+│  │  👤 David Park                      Member  [···]│   │
+│  │     david@company.com                            │   │
+│  │                                                   │   │
+│  │  ... 4 more members                 [Show All]  │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                           │
+│  Shared Folders (3)                   [View All]        │
+│  • Engineering Docs, Code, Architecture                  │
+│                                                           │
+│  ──────────────────────────────────────────────────────  │
+│                                                           │
+│  [Leave Team]                              [Close]      │
+│                                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Features:**
+- View all team members with roles
+- See shared folders accessible by this team
+- [+ Add Members] button (Lead only)
+- [···] menu on each member (Lead only) → Remove member, Change role
+- [Leave Team] button at bottom
+
+**Member Context Menu (Lead only):**
+```
+┌─────────────────────────────┐
+│ • Change to Lead            │
+│ • Change to Member          │
+│ • Remove from Team          │
+└─────────────────────────────┘
+```
+
+**Workflow to Add Members:**
+1. Click [+ Add Members]
+2. Search box appears with org members
+3. Check members to add
+4. Click [Add]
+5. ✅ Members added to team
+
+**API Calls:**
+- `GET /api/teams/{teamId}`
+- `GET /api/teams/{teamId}/members`
+- `POST /api/teams/{teamId}/members` (when adding)
+- `DELETE /api/teams/{teamId}/members/{userId}` (when removing)
+
+---
+
+#### **Screen 16: Leave Team Confirmation** (Click [···] → "Leave Team")
+```
+┌─────────────────────────────────────────────────────────┐
+│  Leave Engineering Team?                     [✕]       │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  Are you sure you want to leave the                      │
+│  "Engineering" team?                                     │
+│                                                           │
+│  You will lose access to:                                │
+│  • 3 shared folders                                      │
+│  • 127 documents                                         │
+│  • Team chat channels                                    │
+│                                                           │
+│  ⚠️  You can rejoin if a team lead invites you again.   │
+│                                                           │
+│  [Cancel]                              [Leave Team]     │
+│                                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Features:**
+- Shows team name
+- Lists what user will lose access to
+- Warning that they need re-invitation to rejoin
+- Danger button styling on [Leave Team]
+
+**Workflow:**
+1. Click [···] next to team name
+2. Select "Leave Team"
+3. Confirmation modal appears
+4. Review what you'll lose access to
+5. Click [Leave Team] to confirm
+6. ✅ Success → Team removed from your list
+7. Toast notification: "You left Engineering team"
+
+**API Call:** `DELETE /api/teams/{teamId}/members/{userId}` (self)
+
+**Note:** If user is the last Lead, system prevents leaving or prompts to assign new lead first.
 
 ---
 
@@ -814,15 +1103,82 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 ### Workflow 4: Create Team & Add Members
 ```
 1. Click ⚙️ Settings → "Teams & Members"
-2. Click "+ Create Team"
+2. Click [+ Create Team]
 3. Enter team name (e.g., "Engineering")
-4. (Optional) Add members from dropdown
-5. Click "Create Team"
-6. Team appears in Teams section of left panel
-7. Share folders with team using right-click menu
+4. (Optional) Search and check members to add
+5. Click [Create Team]
+6. ✅ Success → You're now the team lead
+7. Team appears in Teams & Members list
+8. Share folders with team using right-click menu on folders
 ```
 
-### Workflow 5: Switch Organization
+### Workflow 5: Leave Team
+```
+1. Click ⚙️ Settings → "Teams & Members"
+2. Find the team you want to leave
+3. Click [···] next to team name
+4. Select "Leave Team"
+5. Review what access you'll lose
+6. Click [Leave Team] to confirm
+7. ✅ Success → Team removed from your list
+8. Toast: "You left Engineering team"
+```
+
+### Workflow 6: Add Members to Team (Lead only)
+```
+1. Click ⚙️ Settings → "Teams & Members"
+2. Click [···] next to your team
+3. Select "View Members"
+4. Click [+ Add Members]
+5. Search for members by name or email
+6. Check boxes next to members to add
+7. Click [Add]
+8. ✅ Success → Members added and notified
+9. New members can now access team's shared folders
+```
+
+### Workflow 7: Browse and View File Content
+```
+1. Click "Files" tab in left panel
+2. Middle panel shows list of all indexed files
+3. (Optional) Use search or filters to find specific files
+4. Click on a file in the middle panel
+5. Right panel displays file content
+6. Actions available:
+   - [Download] to save file locally
+   - [Share] to share with teams
+   - [Ask AI about this file] to start contextual chat
+7. Navigate pages with [Next Page >] / [< Previous Page]
+8. Click another file to view different content
+```
+
+### Workflow 8: View and Continue Chat History
+```
+1. Click "Chats" tab in left panel
+2. Middle panel shows list of all saved chats
+3. (Optional) Search chats by title or content
+4. Click on a chat in the middle panel
+5. Right panel displays full chat history
+6. Review previous messages and sources
+7. (Optional) Click [Continue Chat] to add new messages
+8. Type question in input at bottom
+9. ✅ New message added to existing chat
+10. Chat auto-saves with updated content
+```
+
+### Workflow 9: Save Current Chat for Later
+```
+1. Start new chat in main interface
+2. Ask questions and get AI responses
+3. Click [Save Chat] button (or [···] → Save)
+4. Enter chat title in modal
+5. (Optional) Add tags or description
+6. Click [Save]
+7. ✅ Chat saved and appears in Chats list
+8. Can continue or view later from Chats tab
+```
+
+### Workflow 10: Switch Organization
 ```
 1. Click ⚙️ Settings
 2. Select "Switch Organization..."
@@ -833,33 +1189,43 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ---
 
-## 🎨 Design Principles (Matching Current Panlo)
+## 🎨 Design Principles (Enhanced Three-Panel Layout)
 
-### 1. **Simplicity First**
-- Single main view: Chat interface
-- Left panel for navigation only
+### 1. **Unified Interface**
+- Three-panel layout for maximum flexibility
+- Left panel: Navigation (Folders, Files, Chats)
+- Middle panel: List/Browse view
+- Right panel: Detail view (Files or Chats)
 - Minimal top bar (just Settings & Stats icons)
-- No complex multi-tab navigation
 
-### 2. **Context in Sidebar**
+### 2. **Flexible Detail View**
+- **Consolidated display** for files and chats
+- Click file → View content
+- Click chat → View history
+- No selection → AI chat interface (default)
+- Seamless switching between content types
+
+### 3. **Context in Sidebar**
 - All folders visible at glance
 - Organized by access level (Public / Your / Teams)
 - Right-click for actions (no complex menus)
-- Watch/Smart tabs for different modes
+- Tabs for Folders, Files, and Chats
 
-### 3. **Chat-Centric**
+### 4. **Chat-Centric Yet Flexible**
 - Primary interaction is conversational
-- No separate "search" page
 - Sources embedded in responses
 - Context automatically managed
+- Easy access to file browsing and chat history
+- Optional simplified two-panel focus mode
 
-### 4. **Modal Dialogs for Actions**
+### 5. **Modal Dialogs for Actions**
 - Add folder → Modal
 - Settings → Modal
 - Share folder → Modal
+- Save chat → Modal (title + metadata)
 - Keep main view uncluttered
 
-### 5. **Background Operations**
+### 6. **Background Operations**
 - Indexing happens in background
 - Non-blocking UI
 - Progress indicators when needed
@@ -1310,16 +1676,21 @@ Toggle Sidebar                  ⌘B
 | **2** | Sign Up | New user registration | `POST /api/auth/signup` |
 | **3** | Organization Selector | Choose/create organization | `GET /api/auth/me`<br>`POST /api/orgs` |
 | **4** | Create New Organization | Organization setup | `POST /api/orgs` |
-| **5** | Main Chat Interface | Primary application view | `POST /api/orgs/{orgId}/chat` |
-| **6** | Active Chat | Active chat view | `POST /api/orgs/{orgId}/chat` |
+| **5** | Main Application Interface | Three-panel layout (default) | `POST /api/orgs/{orgId}/chat` |
+| **5a** | Detail View - File Content | File viewing in detail panel | `GET /api/orgs/{orgId}/documents/{docId}`<br>`GET /api/orgs/{orgId}/documents/{docId}/content` |
+| **5b** | Detail View - Chat History | Chat history in detail panel | `GET /api/chats/{chatId}`<br>`GET /api/chats/{chatId}/messages` |
+| **6** | Simplified Chat View | Two-panel focus mode (optional) | `POST /api/orgs/{orgId}/chat`<br>`POST /api/orgs/{orgId}/chats` |
 | **7** | Add Watch Folder | Folder selection & setup | `POST /api/orgs/{orgId}/folders` |
 | **8** | Folder Context Menu | Right-click folder actions | `POST /api/folders/{folderId}/share` |
 | **9** | Settings Modal | Main settings navigation | - |
 | **10** | Notifications Settings | Configure notifications | `PUT /api/users/preferences/notifications` |
 | **11** | Watch Folders Settings | Configure folder behavior | `PUT /api/users/preferences/folders` |
 | **12** | Profile & Account | User profile & preferences | `PUT /api/users/profile`<br>`PUT /api/users/password`<br>`POST /api/users/2fa/enable` |
-| **13** | Manage Teams | View & manage teams | `GET /api/orgs/{orgId}/teams` |
+| **13** | Teams & Members | View & manage teams | `GET /api/users/me/teams` |
+| **13a** | Team Context Menu | Team actions menu | - |
 | **14** | Create Team | Create new team | `POST /api/orgs/{orgId}/teams`<br>`POST /api/teams/{teamId}/members` |
+| **15** | Team Detail View | View team members & details | `GET /api/teams/{teamId}`<br>`GET /api/teams/{teamId}/members` |
+| **16** | Leave Team Confirmation | Confirm leaving team | `DELETE /api/teams/{teamId}/members/{userId}` |
 
 ### UI Components Summary
 
@@ -1413,16 +1784,22 @@ Toggle Sidebar                  ⌘B
 
 This comprehensive UX workflow document now includes:
 
-✅ **14 detailed screen mockups** with ASCII art UI representations  
-✅ **5 key user workflows** with step-by-step instructions  
+✅ **18+ detailed screen mockups** with ASCII art UI representations  
+✅ **10 key user workflows** with step-by-step instructions  
+✅ **Unified three-panel layout** with consolidated detail view for files and chats  
+✅ **File browsing system** with content preview and actions  
+✅ **Chat history management** with save, view, and continue features  
+✅ **Complete team management system** with create, view, leave workflows  
 ✅ **Complete notification system** with toast examples and settings  
 ✅ **Comprehensive toggle & UI patterns** with usage guidelines  
-✅ **Full settings screens** (Notifications, Folders, Profile)  
+✅ **Full settings screens** (Notifications, Folders, Profile, Teams)  
 ✅ **Component usage guidelines** for all UI elements  
 ✅ **Design patterns** for toggles, dropdowns, buttons, and badges  
 ✅ **Quick reference tables** for screens, components, and shortcuts
 
-**Total Document Size:** ~1,400 lines of comprehensive UX documentation
+**Total Document Size:** ~1,800+ lines of comprehensive UX documentation
+
+**Key Innovation:** Consolidated detail view seamlessly switches between file content and chat history, providing a unified browsing and conversation experience.
 
 **Next Steps:** Choose an implementation option from the "Next Steps for Implementation" section above to begin building!
 
