@@ -1216,22 +1216,35 @@ app.post('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, a
       id: `${docId}:${i}`,
       text: chunk.text,
       metadata: {
+        // Access control fields
         org_id: orgId,
         owner_user_id: userId,
         team_ids: teamIds,
         visibility: folder.visibility,
         folder_id: folderId,
+        
+        // Document identification
         doc_id: docId,
         chunk_no: i,
-        mime: metadata.mime || 'text/plain',
-        title: filename,
-        text: chunk.text,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        status: 'active',
+        
+        // File metadata
         filename,
         filepath,
         fileType: metadata.fileType || 'txt',
+        mime: metadata.mime || 'text/plain',
+        title: filename,
+        
+        // Content and status
+        text: chunk.text,
+        status: 'active',
+        
+        // Timestamps
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        
+        // Non-redundant metadata (important for search/reconstruction)
+        summary: metadata.summary || '',
+        smartFolderNames: metadata.smartFolderNames || [],
       },
     }));
 
@@ -1254,11 +1267,26 @@ app.post('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, a
 
     await chatbotClient.upsertVectors(orgId, vectorsToUpsert);
 
-    // Store document metadata in DB
+    // Store document in DB with all fields in dedicated columns
     await pool.query(
-      `INSERT INTO documents (doc_id, folder_id, org_id, owner_user_id, filepath, filename, mime_type, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [docId, folderId, orgId, userId, filepath, filename, metadata.mime || 'text/plain', 'active']
+      `INSERT INTO documents 
+       (doc_id, folder_id, org_id, owner_user_id, filepath, filename, mime_type, file_size, content_hash, chunks, summary, smart_folder_ids, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        docId, 
+        folderId, 
+        orgId, 
+        userId, 
+        filepath, 
+        filename, 
+        metadata.mime || 'text/plain',
+        metadata.fileSize || 0,
+        metadata.hash || '',
+        vectors.length,
+        metadata.summary || null,
+        JSON.stringify(metadata.smartFolderNames || []),
+        'active'
+      ]
     );
 
     res.status(201).json({
@@ -1295,10 +1323,24 @@ app.post('/api/orgs/:orgId/delete-vectors', authenticateToken, verifyOrgMembersh
 
     await chatbotClient.deleteVectors(orgId, ids);
 
+    // Extract unique doc_ids from vector IDs (format: doc_xxx:chunk_no)
+    const docIds = [...new Set(ids.map(id => id.split(':')[0]))];
+    
+    // Update document status in database to 'deleted'
+    if (docIds.length > 0) {
+      const placeholders = docIds.map(() => '?').join(',');
+      await pool.query(
+        `UPDATE documents SET status = 'deleted', updated_at = NOW() WHERE doc_id IN (${placeholders})`,
+        docIds
+      );
+      console.log(`📝 Updated ${docIds.length} documents status to 'deleted'`);
+    }
+
     res.json({
       success: true,
       message: `Successfully deleted ${ids.length} vectors`,
       deletedCount: ids.length,
+      documentsUpdated: docIds.length,
     });
   } catch (error) {
     console.error('Error deleting vectors:', error);
@@ -1353,6 +1395,149 @@ app.post('/api/orgs/:orgId/generate-summary', authenticateToken, verifyOrgMember
       error: 'Failed to generate summary',
       message: error.message 
     });
+  }
+});
+
+/**
+ * GET /api/orgs/:orgId/documents
+ * Get all documents for an organization (for file index reconstruction)
+ */
+app.get('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, async (req, res) => {
+  const { orgId } = req.params;
+  const { userId } = req.user;
+
+  console.log('🔍 Fetching all documents for organization:', { orgId, userId });
+
+  try {
+    // Query all active documents for this organization
+    const [documents] = await pool.query(
+      `SELECT 
+        doc_id, folder_id, filepath, filename, mime_type, file_size, content_hash, 
+        chunks, summary, smart_folder_ids, status, created_at, updated_at
+       FROM documents 
+       WHERE org_id = ? AND status = 'active'
+       ORDER BY created_at DESC`,
+      [orgId]
+    );
+
+    console.log(`📋 Found ${documents.length} documents for organization`);
+
+    // Filter documents based on folder access
+    const accessibleDocuments = [];
+    for (const doc of documents) {
+      const hasAccess = await authService.checkFolderAccess(pool, userId, doc.folder_id);
+      if (hasAccess) {
+        // Parse smart_folder_ids JSON array
+        let smartFolderIds = [];
+        if (doc.smart_folder_ids) {
+          try {
+            smartFolderIds = typeof doc.smart_folder_ids === 'string' 
+              ? JSON.parse(doc.smart_folder_ids) 
+              : doc.smart_folder_ids;
+          } catch (e) {
+            console.warn('⚠️ Failed to parse smart_folder_ids:', e);
+          }
+        }
+
+        accessibleDocuments.push({
+          docId: doc.doc_id,
+          folderId: doc.folder_id,
+          filepath: doc.filepath,
+          filename: doc.filename,
+          mimeType: doc.mime_type,
+          fileSize: doc.file_size,
+          contentHash: doc.content_hash,
+          chunks: doc.chunks,
+          summary: doc.summary,
+          smartFolderIds: smartFolderIds,
+          status: doc.status,
+          createdAt: doc.created_at,
+          updatedAt: doc.updated_at,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      totalDocuments: documents.length,
+      accessibleDocuments: accessibleDocuments.length,
+      documents: accessibleDocuments,
+    });
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+/**
+ * GET /api/orgs/:orgId/documents/:docId
+ * Get document metadata from database
+ */
+app.get('/api/orgs/:orgId/documents/:docId', authenticateToken, verifyOrgMembership, async (req, res) => {
+  const { orgId, docId } = req.params;
+  const { userId } = req.user;
+
+  console.log('🔍 Fetching document metadata:', { orgId, docId, userId });
+
+  try {
+    // Query document from database
+    const [documents] = await pool.query(
+      `SELECT 
+        doc_id, folder_id, org_id, owner_user_id, filepath, filename, 
+        mime_type, file_size, content_hash, chunks, summary, smart_folder_ids,
+        status, created_at, updated_at
+       FROM documents 
+       WHERE doc_id = ? AND org_id = ?`,
+      [docId, orgId]
+    );
+
+    if (documents.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const document = documents[0];
+
+    // Check folder access
+    const hasAccess = await authService.checkFolderAccess(pool, userId, document.folder_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'No access to this document' });
+    }
+
+    // Parse smart_folder_ids JSON array
+    let smartFolderIds = [];
+    if (document.smart_folder_ids) {
+      try {
+        smartFolderIds = typeof document.smart_folder_ids === 'string' 
+          ? JSON.parse(document.smart_folder_ids) 
+          : document.smart_folder_ids;
+      } catch (e) {
+        console.warn('⚠️ Failed to parse smart_folder_ids:', e);
+      }
+    }
+
+    res.json({
+      success: true,
+      document: {
+        docId: document.doc_id,
+        folderId: document.folder_id,
+        orgId: document.org_id,
+        ownerUserId: document.owner_user_id,
+        filepath: document.filepath,
+        filename: document.filename,
+        mimeType: document.mime_type,
+        fileSize: document.file_size,
+        contentHash: document.content_hash,
+        chunks: document.chunks,
+        summary: document.summary,
+        smartFolderIds: smartFolderIds,
+        status: document.status,
+        createdAt: document.created_at,
+        updatedAt: document.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching document metadata:', error);
+    res.status(500).json({ error: 'Failed to fetch document metadata' });
   }
 });
 

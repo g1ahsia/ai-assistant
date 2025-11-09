@@ -139,11 +139,12 @@ CREATE TABLE documents (
   mime_type VARCHAR(100),
   file_size BIGINT,
   content_hash VARCHAR(64),                  -- SHA-256 for deduplication
+  chunks INT DEFAULT 0,                      -- Number of vector chunks
+  summary TEXT,                              -- AI-generated summary
+  smart_folder_ids JSON,                     -- Array of smart folder IDs this doc belongs to
   status VARCHAR(50) DEFAULT 'active',       -- "active", "deleted", "stale"
-  indexed_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  metadata JSON,                             -- Additional document metadata
   FOREIGN KEY (folder_id) REFERENCES folders(folder_id) ON DELETE CASCADE,
   FOREIGN KEY (org_id) REFERENCES orgs(org_id) ON DELETE CASCADE,
   FOREIGN KEY (owner_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
@@ -151,7 +152,8 @@ CREATE TABLE documents (
   INDEX idx_org (org_id),
   INDEX idx_owner (owner_user_id),
   INDEX idx_hash (content_hash),
-  INDEX idx_status (status)
+  INDEX idx_status (status),
+  FULLTEXT idx_summary (summary)             -- Full-text search on summary
 );
 
 -- Audit log (optional - for compliance and debugging)
