@@ -1225,7 +1225,6 @@ app.post('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, a
         chunk_no: i,
         mime: metadata.mime || 'text/plain',
         title: filename,
-        path: filepath,
         text: chunk.text,
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -1406,7 +1405,7 @@ app.get('/api/orgs/:orgId/documents/:docId/vectors', authenticateToken, verifyOr
         text: match.metadata?.text || '',
         title: match.metadata?.title || match.metadata?.filename || 'Untitled',
         filename: match.metadata?.filename,
-        filepath: match.metadata?.filepath || match.metadata?.path,
+        filepath: match.metadata?.filepath,
       }))
       .sort((a, b) => a.chunkNo - b.chunkNo);
 
@@ -1514,7 +1513,7 @@ app.get('/api/orgs/:orgId/vectors/:vectorId', authenticateToken, verifyOrgMember
         text: metadata.text || '',
         title: metadata.title || metadata.filename || 'Untitled',
         filename: metadata.filename,
-        filepath: metadata.filepath || metadata.path,
+        filepath: metadata.filepath,
         chunkNo: metadata.chunk_no || 0,
         totalChunks: totalChunks,
         mimeType: metadata.mime || 'text/plain',
@@ -1526,6 +1525,69 @@ app.get('/api/orgs/:orgId/vectors/:vectorId', authenticateToken, verifyOrgMember
   } catch (error) {
     console.error('Error fetching vector:', error);
     res.status(500).json({ error: 'Failed to fetch vector content' });
+  }
+});
+
+/**
+ * POST /api/orgs/:orgId/vectors/query-all
+ * Query all vectors for an organization (used for file index reconstruction)
+ */
+app.post('/api/orgs/:orgId/vectors/query-all', authenticateToken, verifyOrgMembership, async (req, res) => {
+  const { orgId } = req.params;
+  const { userId } = req.user;
+  const { query, topK = 10000, filter } = req.body;
+
+  console.log('🔍 Querying all vectors for organization:', { 
+    orgId, 
+    userId, 
+    topK,
+    filter 
+  });
+
+  try {
+    // Query vectors from Pinecone for this org's namespace
+    const namespace = config.pinecone.namespaces.org(orgId);
+    console.log('📦 Using namespace:', namespace);
+    
+    const pc = new (await import('@pinecone-database/pinecone')).Pinecone({ 
+      apiKey: config.pinecone.apiKey 
+    });
+    const index = pc.index(config.pinecone.indexName);
+    console.log('📊 Using index:', config.pinecone.indexName);
+    
+    // Use a dummy vector for querying all vectors
+    // The vector dimension should match your Pinecone index (1024 for text-embedding-ada-002)
+    const dummyVector = Array(1024).fill(0);
+    
+    const queryResult = await index.namespace(namespace).query({
+      vector: dummyVector,
+      topK: topK,
+      filter: filter || { filepath: { "$exists": true } },
+      includeMetadata: true,
+      includeValues: false,
+    });
+    
+    console.log(`✅ Retrieved ${queryResult.matches?.length || 0} vectors from Pinecone for org ${orgId}`);
+
+    // Filter vectors to only include those the user has access to
+    const accessibleMatches = [];
+    for (const match of queryResult.matches || []) {
+      const hasAccess = await authService.checkVectorAccess(pool, userId, match.metadata);
+      if (hasAccess) {
+        accessibleMatches.push(match);
+      }
+    }
+
+    console.log(`🔐 User has access to ${accessibleMatches.length} out of ${queryResult.matches?.length || 0} vectors`);
+
+    res.json({
+      success: true,
+      matches: accessibleMatches,
+      totalCount: accessibleMatches.length,
+    });
+  } catch (error) {
+    console.error('❌ Error querying all vectors:', error);
+    res.status(500).json({ error: 'Failed to query vectors' });
   }
 });
 

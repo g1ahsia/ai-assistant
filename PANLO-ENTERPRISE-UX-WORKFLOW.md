@@ -879,11 +879,10 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 **User Actions:**
 1. **Create Team** → Click [+ Create Team] → Screen 14
-2. **View Team** → Click [···] → Select "View Members" → Screen 15
+2. **Manage/View Team** → Click [···] → Select "Manage Team" or "View Team" → Screen 15
 3. **Leave Team** → Click [···] → Select "Leave Team" → Screen 16
-4. **Team Settings** → Click [···] → Select "Team Settings" (Lead only)
 
-**API Call:** `GET /api/users/me/teams`
+**API Call:** `GET /api/orgs/{orgId}/teams`
 
 ---
 
@@ -892,8 +891,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 **For Team Leads:**
 ```
 ┌─────────────────────────────┐
-│ • View Members              │
-│ • Team Settings             │
+│ • Manage Team               │
 │ • Leave Team                │
 │ ──────────────────────────  │
 │ • Delete Team               │
@@ -903,10 +901,16 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 **For Team Members:**
 ```
 ┌─────────────────────────────┐
-│ • View Members              │
+│ • View Team                 │
 │ • Leave Team                │
 └─────────────────────────────┘
 ```
+
+**Actions:**
+- **Manage Team** (Lead only): Opens team detail view with members list + settings
+- **View Team** (Member only): Opens team detail view (read-only)
+- **Leave Team**: Confirmation modal to leave the team
+- **Delete Team** (Lead only): Confirmation modal to delete entire team
 
 ---
 
@@ -954,7 +958,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ---
 
-#### **Screen 15: Team Detail View** (Click [···] → "View Members")
+#### **Screen 15: Team Detail View** (Click [···] → "Manage Team" or "View Team")
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Engineering Team                            [✕]       │
@@ -995,9 +999,13 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 **Features:**
 - View all team members with roles
 - See shared folders accessible by this team
-- [+ Add Members] button (Lead only)
-- [···] menu on each member (Lead only) → Remove member, Change role
-- [Leave Team] button at bottom
+- **For Leads (Manage Team):**
+  - [+ Add Members] button to add new members
+  - [···] menu on each member → Remove member, Change role
+  - Edit team name and settings
+- **For Members (View Team):**
+  - Read-only view of members and folders
+- [Leave Team] button at bottom (all users)
 
 **Member Context Menu (Lead only):**
 ```
@@ -1128,7 +1136,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 ```
 1. Click ⚙️ Settings → "Teams & Members"
 2. Click [···] next to your team
-3. Select "View Members"
+3. Select "Manage Team"
 4. Click [+ Add Members]
 5. Search for members by name or email
 6. Check boxes next to members to add
@@ -1686,7 +1694,7 @@ Toggle Sidebar                  ⌘B
 | **10** | Notifications Settings | Configure notifications | `PUT /api/users/preferences/notifications` |
 | **11** | Watch Folders Settings | Configure folder behavior | `PUT /api/users/preferences/folders` |
 | **12** | Profile & Account | User profile & preferences | `PUT /api/users/profile`<br>`PUT /api/users/password`<br>`POST /api/users/2fa/enable` |
-| **13** | Teams & Members | View & manage teams | `GET /api/users/me/teams` |
+| **13** | Teams & Members | View & manage teams | `GET /api/orgs/{orgId}/teams` |
 | **13a** | Team Context Menu | Team actions menu | - |
 | **14** | Create Team | Create new team | `POST /api/orgs/{orgId}/teams`<br>`POST /api/teams/{teamId}/members` |
 | **15** | Team Detail View | View team members & details | `GET /api/teams/{teamId}`<br>`GET /api/teams/{teamId}/members` |
