@@ -10,10 +10,11 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import fetch from 'node-fetch';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import config from './config-enterprise.js';
 import authService from './authService.js';
 import chatbotClient from './chatbotClient-enterprise.js';
-import folderService from './folderService.js';
 import { generateSummary } from './chatbotClient.js';
 
 // Google OAuth client
@@ -26,8 +27,60 @@ app.use(cors({ origin: config.api.corsOrigins }));
 app.use(express.json({ limit: '50mb' })); // Increased limit for document uploads
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Serve static files (HTML, CSS, JS)
+app.use(express.static('.', {
+  extensions: ['html'],
+  index: false // Don't auto-serve index.html
+}));
+
+// Serve public folder for invitation pages and assets
+app.use('/public', express.static('public'));
+
 // Database connection pool
 const pool = mysql.createPool(config.database);
+
+// ============================================
+// Organization Invitation System Configuration
+// ============================================
+
+/**
+ * Email transporter configuration
+ * Configure based on your email service provider
+ * Lazy initialization to avoid startup errors
+ */
+let emailTransporter = null;
+
+function getEmailTransporter() {
+  if (!emailTransporter) {
+    emailTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
+      }
+    });
+  }
+  return emailTransporter;
+}
+
+/**
+ * Rate limiting configuration for invitations
+ */
+const INVITATION_RATE_LIMITS = {
+  INVITATIONS_PER_ORG_PER_HOUR: 10,
+  INVITATIONS_PER_EMAIL_PER_DAY: 3,
+  MAX_PENDING_INVITATIONS_PER_ORG: 100
+};
+
+/**
+ * Invitation configuration
+ */
+const INVITATION_CONFIG = {
+  TOKEN_LENGTH: 32, // bytes (64 hex characters)
+  EXPIRATION_DAYS: 7,
+  ALLOWED_ROLES: ['admin', 'member'],
+  MAX_MESSAGE_LENGTH: 1000
+};
 
 // ============================================
 // Authentication Middleware
@@ -86,6 +139,211 @@ function requireOrgAdmin(req, res, next) {
     return res.status(403).json({ error: 'Admin or owner role required' });
   }
   next();
+}
+
+// ============================================
+// Organization Invitation Helper Functions
+// ============================================
+
+/**
+ * Generate secure invitation token
+ */
+function generateInvitationToken() {
+  return crypto.randomBytes(INVITATION_CONFIG.TOKEN_LENGTH).toString('hex');
+}
+
+/**
+ * Validate email format
+ */
+function isValidEmail(email) {
+  const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * Check if user has admin/owner role in organization
+ */
+async function isOrgAdmin(userId, orgId) {
+  const [members] = await pool.query(
+    'SELECT role FROM org_members WHERE user_id = ? AND org_id = ?',
+    [userId, orgId]
+  );
+  
+  if (members.length === 0) return false;
+  return ['admin', 'owner'].includes(members[0].role);
+}
+
+/**
+ * Check rate limits for invitations
+ */
+async function checkInvitationRateLimits(orgId, email) {
+  // Check invitations per org per hour
+  const [orgInvitations] = await pool.query(
+    `SELECT COUNT(*) as count FROM org_invitations 
+     WHERE org_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)`,
+    [orgId]
+  );
+  
+  if (orgInvitations[0].count >= INVITATION_RATE_LIMITS.INVITATIONS_PER_ORG_PER_HOUR) {
+    return {
+      allowed: false,
+      reason: 'Rate limit exceeded: Maximum invitations per hour reached'
+    };
+  }
+  
+  // Check invitations per email per day
+  const [emailInvitations] = await pool.query(
+    `SELECT COUNT(*) as count FROM org_invitations 
+     WHERE invitee_email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)`,
+    [email]
+  );
+  
+  if (emailInvitations[0].count >= INVITATION_RATE_LIMITS.INVITATIONS_PER_EMAIL_PER_DAY) {
+    return {
+      allowed: false,
+      reason: 'Rate limit exceeded: Maximum invitations to this email reached'
+    };
+  }
+  
+  // Check total pending invitations for org
+  const [pendingInvitations] = await pool.query(
+    `SELECT COUNT(*) as count FROM org_invitations 
+     WHERE org_id = ? AND status = 'pending'`,
+    [orgId]
+  );
+  
+  if (pendingInvitations[0].count >= INVITATION_RATE_LIMITS.MAX_PENDING_INVITATIONS_PER_ORG) {
+    return {
+      allowed: false,
+      reason: 'Too many pending invitations. Please revoke some before creating new ones.'
+    };
+  }
+  
+  return { allowed: true };
+}
+
+/**
+ * Send invitation email to invitee
+ */
+async function sendInvitationEmail(invitation, org, inviter) {
+  const invitationLink = `${process.env.APP_URL || 'http://localhost:3000'}/accept-invitation/${invitation.invitation_token}`;
+  
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 8px; }
+        .content { padding: 30px 0; }
+        .button { 
+          display: inline-block; 
+          background-color: #007AFF; 
+          color: white; 
+          padding: 12px 30px; 
+          text-decoration: none; 
+          border-radius: 6px;
+          font-weight: 600;
+        }
+        .footer { color: #8e8e93; font-size: 12px; padding-top: 20px; border-top: 1px solid #e0e0e0; }
+        .message { background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0; font-style: italic; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>You're invited to join ${org.name} on Panlo</h2>
+        </div>
+        
+        <div class="content">
+          <p>Hi,</p>
+          
+          <p><strong>${inviter.name || inviter.email}</strong> has invited you to join <strong>${org.name}</strong> on Panlo as a <strong>${invitation.role}</strong>.</p>
+          
+          ${invitation.message ? `
+            <div class="message">
+              "${invitation.message}"
+            </div>
+          ` : ''}
+          
+          <p style="text-align: center; margin: 30px 0;">
+            <a href="${invitationLink}" class="button">Accept Invitation</a>
+          </p>
+          
+          <p style="color: #8e8e93; font-size: 14px;">
+            Or copy and paste this link into your browser:<br>
+            <a href="${invitationLink}">${invitationLink}</a>
+          </p>
+          
+          <p style="color: #8e8e93; font-size: 14px;">
+            This invitation will expire in ${INVITATION_CONFIG.EXPIRATION_DAYS} days.
+          </p>
+        </div>
+        
+        <div class="footer">
+          <p>Panlo - Your AI Assistant<br>
+          This email was sent to ${invitation.invitee_email}</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  const emailText = `
+You're invited to join ${org.name} on Panlo
+
+${inviter.name || inviter.email} has invited you to join ${org.name} on Panlo as a ${invitation.role}.
+
+${invitation.message ? `Message: "${invitation.message}"` : ''}
+
+Accept invitation: ${invitationLink}
+
+This invitation will expire in ${INVITATION_CONFIG.EXPIRATION_DAYS} days.
+
+---
+Panlo - Your AI Assistant
+This email was sent to ${invitation.invitee_email}
+  `;
+  
+  try {
+    const transporter = getEmailTransporter();
+    await transporter.sendMail({
+      from: `"Panlo" <${process.env.EMAIL_FROM || 'noreply@panlo.com'}>`,
+      to: invitation.invitee_email,
+      subject: `You're invited to join ${org.name} on Panlo`,
+      text: emailText,
+      html: emailHtml
+    });
+    
+    console.log(`✅ Invitation email sent to ${invitation.invitee_email}`);
+  } catch (error) {
+    console.error('❌ Error sending invitation email:', error);
+    // Don't throw - invitation created successfully even if email fails
+  }
+}
+
+/**
+ * Log invitation activity
+ */
+async function logInvitationActivity(invitationId, activityType, userId, details, req) {
+  try {
+    await pool.query(
+      `INSERT INTO org_invitation_activity 
+       (invitation_id, activity_type, user_id, ip_address, user_agent, details) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        invitationId,
+        activityType,
+        userId || null,
+        req ? (req.ip || req.connection.remoteAddress) : null,
+        req ? req.get('user-agent') : null,
+        JSON.stringify(details || {})
+      ]
+    );
+  } catch (error) {
+    console.error('Error logging invitation activity:', error);
+  }
 }
 
 // ============================================
@@ -465,6 +723,61 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/users/me
+ * Update current user's profile (e.g., switch organization)
+ */
+app.put('/api/users/me', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { currentOrgId } = req.body;
+
+    if (!currentOrgId) {
+      return res.status(400).json({ error: 'currentOrgId is required' });
+    }
+
+    // Verify user is a member of the target organization
+    const [membership] = await pool.query(
+      'SELECT role FROM org_members WHERE org_id = ? AND user_id = ?',
+      [currentOrgId, userId]
+    );
+
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'You are not a member of this organization' });
+    }
+
+    // Update user's current organization
+    await pool.query(
+      'UPDATE users SET current_org_id = ? WHERE user_id = ?',
+      [currentOrgId, userId]
+    );
+
+    // Get organization details
+    const [orgs] = await pool.query(
+      'SELECT org_id, name, namespace, plan FROM orgs WHERE org_id = ?',
+      [currentOrgId]
+    );
+
+    if (orgs.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const org = orgs[0];
+
+    res.json({
+      success: true,
+      currentOrgId: org.org_id,
+      organizationName: org.name,
+      namespace: org.namespace,
+      plan: org.plan,
+      role: membership[0].role,
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
 // ============================================
 // Organization Endpoints
 // ============================================
@@ -796,159 +1109,685 @@ app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// Folder Endpoints
+// Spaces Endpoints (TO BE IMPLEMENTED)
+// ============================================
+
+/*
+ * SPACES SYSTEM API ENDPOINTS
+ * 
+ * Spaces are the primary organizational unit for documents.
+ * Each space is a collaborative workspace with:
+ * - Role-based access (owner/contributor/viewer)
+ * - Many-to-many file relationships
+ * - Member management
+ * - Activity tracking
+ * 
+ * See SPACES-SYSTEM.md for complete documentation.
+ */
+
+/**
+ * POST /api/orgs/:orgId/spaces
+ * Create a new space (personal or team)
+ * 
+ * @auth Required - User must be org member
+ * @body {
+ *   name: string (required),
+ *   description: string (optional),
+ *   space_type: 'personal' | 'team' (default: 'team'),
+ *   visibility: 'private' | 'shared' (default: 'private')
+ * }
+ * @returns {
+ *   success: true,
+ *   space: {
+ *     spaceId, orgId, name, description,
+ *     space_type, visibility, owner_user_id,
+ *     created_at
+ *   }
+ * }
+ * 
+ * Implementation:
+ * 1. Generate space_id
+ * 2. Insert into spaces table
+ * 3. Add creator as owner in space_members
+ * 4. Log activity in space_activity
+ * 5. Return space details
+ */
+
+/**
+ * GET /api/orgs/:orgId/spaces
+ * Get user's accessible spaces
+ * 
+ * @auth Required
+ * @query {
+ *   space_type: 'personal' | 'team' (optional filter),
+ *   limit: number (default: 50),
+ *   offset: number (default: 0)
+ * }
+ * @returns {
+ *   success: true,
+ *   spaces: [{
+ *     spaceId, name, description,
+ *     space_type, visibility,
+ *     role, // user's role in this space
+ *     file_count, member_count,
+ *     created_at, updated_at
+ *   }]
+ * }
+ * 
+ * Implementation:
+ * 1. Query spaces table with space_members join
+ * 2. Filter by user_id in space_members
+ * 3. Include aggregated counts
+ * 4. Return sorted by updated_at DESC
+ */
+
+/**
+ * GET /api/spaces/:spaceId
+ * Get space details
+ * 
+ * @auth Required - User must be space member
+ * @returns {
+ *   success: true,
+ *   space: {
+ *     spaceId, orgId, name, description,
+ *     space_type, visibility, owner_user_id,
+ *     settings, created_at, updated_at,
+ *     userRole, // current user's role
+ *     file_count, member_count
+ *   }
+ * }
+ */
+
+/**
+ * PUT /api/spaces/:spaceId
+ * Update space details
+ * 
+ * @auth Required - Owner only
+ * @body {
+ *   name: string (optional),
+ *   description: string (optional),
+ *   visibility: 'private' | 'shared' (optional)
+ * }
+ * @returns { success: true }
+ * 
+ * Implementation:
+ * 1. Verify user is owner
+ * 2. Update spaces table
+ * 3. Log activity
+ */
+
+/**
+ * DELETE /api/spaces/:spaceId
+ * Delete space
+ * 
+ * @auth Required - Owner only
+ * @returns { success: true }
+ * 
+ * Implementation:
+ * 1. Verify user is owner
+ * 2. Cannot delete personal spaces
+ * 3. CASCADE deletes: space_members, space_files, space_activity
+ * 4. Log activity before deletion
+ */
+
+/**
+ * POST /api/spaces/:spaceId/members
+ * Add member to space
+ * 
+ * @auth Required - Owner only
+ * @body {
+ *   userId: string (required),
+ *   role: 'owner' | 'contributor' | 'viewer' (required)
+ * }
+ * @returns { success: true }
+ * 
+ * Implementation:
+ * 1. Verify requester is owner
+ * 2. Verify target user is org member
+ * 3. Insert into space_members
+ * 4. Log activity
+ * 5. Send notification to added user
+ */
+
+/**
+ * DELETE /api/spaces/:spaceId/members/:userId
+ * Remove member from space
+ * 
+ * @auth Required - Owner only
+ * @returns { success: true }
+ * 
+ * Implementation:
+ * 1. Verify requester is owner
+ * 2. Cannot remove owner
+ * 3. Delete from space_members
+ * 4. Log activity
+ */
+
+/**
+ * PUT /api/spaces/:spaceId/members/:userId
+ * Update member role
+ * 
+ * @auth Required - Owner only
+ * @body { role: 'owner' | 'contributor' | 'viewer' }
+ * @returns { success: true }
+ * 
+ * Implementation:
+ * 1. Verify requester is owner
+ * 2. Update space_members.role
+ * 3. Log activity
+ */
+
+/**
+ * GET /api/spaces/:spaceId/members
+ * Get space members
+ * 
+ * @auth Required - Space member
+ * @returns {
+ *   success: true,
+ *   members: [{
+ *     userId, name, email, avatar_url,
+ *     role, joined_at, added_by
+ *   }]
+ * }
+ */
+
+/**
+ * POST /api/spaces/:spaceId/files
+ * Add existing documents to space
+ * 
+ * @auth Required - Owner or Contributor
+ * @body {
+ *   docIds: string[] (required: document IDs to add),
+ *   notes: string (optional),
+ *   tags: string[] (optional)
+ * }
+ * @returns {
+ *   success: true,
+ *   added_count: number
+ * }
+ * 
+ * Implementation:
+ * 1. Verify user role (owner/contributor)
+ * 2. Verify all documents exist in org
+ * 3. Insert into space_files (ignore duplicates)
+ * 4. Log activity
+ * 
+ * Note: To upload NEW documents, use POST /api/spaces/:spaceId/upload
+ */
+
+/**
+ * POST /api/spaces/:spaceId/upload
+ * Upload and index a NEW document to a space
+ * 
+ * @auth Required - Owner or Contributor
+ * @body {
+ *   filepath: string (required),
+ *   filename: string (required),
+ *   chunks: array (required: text chunks),
+ *   metadata: { mime, fileSize, hash, summary } (optional)
+ * }
+ * @returns {
+ *   success: true,
+ *   docId: string,
+ *   spaceId: string,
+ *   vectorCount: number
+ * }
+ * 
+ * Implementation:
+ * 1. Verify user role (owner/contributor)
+ * 2. Generate embeddings for chunks
+ * 3. Upsert vectors to Pinecone
+ * 4. Insert document into documents table
+ * 5. Add document to space via space_files
+ * 6. Log activity
+ */
+
+/**
+ * DELETE /api/spaces/:spaceId/files/:docId
+ * Remove file from space
+ * 
+ * @auth Required
+ *   - Owner: can remove any file
+ *   - Contributor: can only remove files they added
+ *   - Viewer: cannot remove files
+ * @returns { success: true }
+ * 
+ * Implementation:
+ * 1. Get user role in space
+ * 2. If contributor, verify added_by = userId
+ * 3. If owner, allow
+ * 4. Delete from space_files
+ * 5. Log activity
+ * 6. Note: File still exists in documents table
+ */
+
+/**
+ * GET /api/spaces/:spaceId/files
+ * Get files in space
+ * 
+ * @auth Required - Space member
+ * @query {
+ *   limit: number (default: 100),
+ *   offset: number (default: 0),
+ *   sortBy: 'added_at' | 'filename' (default: 'added_at'),
+ *   order: 'asc' | 'desc' (default: 'desc')
+ * }
+ * @returns {
+ *   success: true,
+ *   files: [{
+ *     docId, filename, filepath, mime_type,
+ *     file_size, chunks, summary,
+ *     added_at, added_by, added_by_name,
+ *     notes, tags
+ *   }]
+ * }
+ */
+
+/**
+ * POST /api/spaces/:spaceId/query
+ * Query AI with space context
+ * 
+ * @auth Required - Space member (all roles can query)
+ * @body {
+ *   query: string (required),
+ *   chatHistory: array (optional),
+ *   answerMode: 'precise' | 'comprehensive' (default: 'precise'),
+ *   chatId: string (optional - to save message)
+ * }
+ * @returns {
+ *   success: true,
+ *   response: string, // AI response
+ *   citedSources: string[], // vector IDs
+ *   context: array, // matched vectors
+ *   chat: { chatId, userMessageId, assistantMessageId } // if chatId provided
+ * }
+ * 
+ * Implementation:
+ * 1. Verify user is space member
+ * 2. Get all doc_ids from space_files for this space
+ * 3. Build Pinecone filter: { doc_id: { $in: docIds } }
+ * 4. Call chatbotClient.generateResponse with filter
+ * 5. If chatId, save messages
+ * 6. Log query activity in space_activity
+ */
+
+/**
+ * POST /api/orgs/:orgId/spaces/query
+ * Query AI across multiple spaces
+ * 
+ * @auth Required
+ * @body {
+ *   query: string (required),
+ *   spaceIds: string[] (required),
+ *   chatHistory: array (optional),
+ *   answerMode: string (optional)
+ * }
+ * @returns { same as single space query }
+ * 
+ * Implementation:
+ * 1. Verify user is member of ALL specified spaces
+ * 2. Get all doc_ids from space_files for all spaces
+ * 3. Build combined Pinecone filter
+ * 4. Generate AI response
+ * 5. Log activity in all queried spaces
+ */
+
+/**
+ * PUT /api/users/me
+ * Update user profile (including current space)
+ * 
+ * @auth Required
+ * @body {
+ *   currentOrgId: string (optional),
+ *   currentSpaceId: string (optional)
+ * }
+ * @returns {
+ *   success: true,
+ *   currentOrgId: string,
+ *   organizationName: string,
+ *   currentSpaceId: string,
+ *   spaceName: string
+ * }
+ * 
+ * Implementation:
+ * 1. If currentSpaceId provided:
+ *    - Verify user is space member
+ *    - Update users.current_space_id
+ * 2. If currentOrgId provided:
+ *    - Verify user is org member
+ *    - Update users.current_org_id
+ * 3. Return updated info
+ * 
+ * Note: This endpoint already exists but needs to be updated
+ * to support currentSpaceId parameter
+ */
+
+/**
+ * GET /api/spaces/:spaceId/activity
+ * Get space activity log
+ * 
+ * @auth Required - Space member
+ * @query {
+ *   limit: number (default: 50),
+ *   offset: number (default: 0),
+ *   activity_type: string (optional filter)
+ * }
+ * @returns {
+ *   success: true,
+ *   activities: [{
+ *     activity_id, activity_type,
+ *     user_id, user_name,
+ *     details, created_at
+ *   }]
+ * }
+ */
+
+// ============================================
+// Spaces Management Endpoints (IMPLEMENTATION)
 // ============================================
 
 /**
- * GET /api/orgs/:orgId/folders
- * Get user's accessible folders
+ * GET /api/orgs/:orgId/spaces
+ * Get user's accessible spaces
  */
-app.get('/api/orgs/:orgId/folders', authenticateToken, verifyOrgMembership, async (req, res) => {
+app.get('/api/orgs/:orgId/spaces', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
   const { userId } = req.user;
+  const { space_type, limit = 50, offset = 0 } = req.query;
 
   try {
-    const folders = await folderService.getUserFolders(pool, userId, orgId);
-    res.json({ folders });
+    // Build query with optional space_type filter
+    let query = `
+      SELECT 
+        s.space_id, s.org_id, s.name, s.description,
+        s.space_type, s.visibility, s.owner_user_id,
+        s.created_at, s.updated_at,
+        sm.role,
+        (SELECT COUNT(*) FROM space_files WHERE space_id = s.space_id) AS file_count,
+        (SELECT COUNT(*) FROM space_members WHERE space_id = s.space_id) AS member_count
+      FROM spaces s
+      INNER JOIN space_members sm ON s.space_id = sm.space_id
+      WHERE s.org_id = ? AND sm.user_id = ?
+    `;
+
+    const params = [orgId, userId];
+
+    if (space_type && ['personal', 'team'].includes(space_type)) {
+      query += ' AND s.space_type = ?';
+      params.push(space_type);
+    }
+
+    query += ' ORDER BY s.updated_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), parseInt(offset));
+
+    const [spaces] = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      spaces: spaces.map(s => ({
+        spaceId: s.space_id,
+        orgId: s.org_id,
+        name: s.name,
+        description: s.description,
+        spaceType: s.space_type,
+        visibility: s.visibility,
+        ownerUserId: s.owner_user_id,
+        role: s.role,
+        fileCount: s.file_count,
+        memberCount: s.member_count,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+      })),
+    });
   } catch (error) {
-    console.error('Error fetching folders:', error);
-    res.status(500).json({ error: 'Failed to fetch folders' });
+    console.error('Error fetching spaces:', error);
+    res.status(500).json({ error: 'Failed to fetch spaces' });
   }
 });
 
 /**
- * POST /api/orgs/:orgId/folders
- * Create a new watched folder
+ * POST /api/orgs/:orgId/spaces
+ * Create a new space
  */
-app.post('/api/orgs/:orgId/folders', authenticateToken, verifyOrgMembership, async (req, res) => {
+app.post('/api/orgs/:orgId/spaces', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
-  const { name, path, visibility = 'private' } = req.body;
   const { userId } = req.user;
+  const { name, description, space_type = 'team', visibility = 'private' } = req.body;
 
-  if (!name || !path) {
-    return res.status(400).json({ error: 'Folder name and path are required' });
+  if (!name) {
+    return res.status(400).json({ error: 'Space name is required' });
   }
 
-  const folderId = `folder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  if (!['personal', 'team'].includes(space_type)) {
+    return res.status(400).json({ error: 'Invalid space_type' });
+  }
+
+  if (!['private', 'shared'].includes(visibility)) {
+    return res.status(400).json({ error: 'Invalid visibility' });
+  }
+
+  const spaceId = `space_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   try {
+    // Create space
     await pool.query(
-      `INSERT INTO folders (folder_id, org_id, owner_user_id, path, name, visibility)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [folderId, orgId, userId, path, name, visibility]
+      `INSERT INTO spaces (space_id, org_id, name, description, space_type, visibility, owner_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [spaceId, orgId, name, description || null, space_type, visibility, userId]
+    );
+
+    // Add creator as owner
+    await pool.query(
+      `INSERT INTO space_members (space_id, user_id, role, added_by)
+       VALUES (?, ?, 'owner', ?)`,
+      [spaceId, userId, userId]
+    );
+
+    // Log activity
+    await pool.query(
+      `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+       VALUES (?, ?, 'space_created', ?)`,
+      [spaceId, userId, JSON.stringify({ name, space_type })]
     );
 
     res.status(201).json({
       success: true,
-      folder: { folderId, orgId, ownerId: userId, path, name, visibility },
+      space: {
+        spaceId,
+        orgId,
+        name,
+        description,
+        spaceType: space_type,
+        visibility,
+        ownerUserId: userId,
+        role: 'owner',
+        fileCount: 0,
+        memberCount: 1,
+      },
     });
   } catch (error) {
-    console.error('Error creating folder:', error);
-    res.status(500).json({ error: 'Failed to create folder' });
+    console.error('Error creating space:', error);
+    res.status(500).json({ error: 'Failed to create space' });
   }
 });
 
 /**
- * DELETE /api/orgs/:orgId/folders/:folderId
- * Delete a watched folder
+ * GET /api/spaces/:spaceId
+ * Get space details
  */
-app.delete('/api/orgs/:orgId/folders/:folderId', authenticateToken, verifyOrgMembership, async (req, res) => {
-  const { orgId, folderId } = req.params;
+app.get('/api/spaces/:spaceId', authenticateToken, async (req, res) => {
+  const { spaceId } = req.params;
   const { userId } = req.user;
 
   try {
-    // Verify folder exists and user has permission (owner or org admin)
-    const [folders] = await pool.query(
-      `SELECT f.folder_id, f.owner_user_id, f.org_id,
-              om.role as user_org_role
-       FROM folders f
-       LEFT JOIN org_members om ON f.org_id = om.org_id AND om.user_id = ?
-       WHERE f.folder_id = ? AND f.org_id = ?`,
-      [userId, folderId, orgId]
+    // Verify user is space member
+    const [members] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, userId]
     );
 
-    if (folders.length === 0) {
-      return res.status(404).json({ error: 'Folder not found' });
+    if (members.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
     }
 
-    const folder = folders[0];
-    const isOwner = folder.owner_user_id === userId;
-    const isOrgAdmin = folder.user_org_role === 'admin' || folder.user_org_role === 'owner';
+    // Get space details
+    const [spaces] = await pool.query(
+      `SELECT 
+        s.*,
+        (SELECT COUNT(*) FROM space_files WHERE space_id = s.space_id) AS file_count,
+        (SELECT COUNT(*) FROM space_members WHERE space_id = s.space_id) AS member_count
+       FROM spaces s
+       WHERE s.space_id = ?`,
+      [spaceId]
+    );
 
-    if (!isOwner && !isOrgAdmin) {
-      return res.status(403).json({ error: 'Only folder owner or org admin can delete folders' });
+    if (spaces.length === 0) {
+      return res.status(404).json({ error: 'Space not found' });
     }
 
-    // Delete folder
-    await pool.query('DELETE FROM folders WHERE folder_id = ?', [folderId]);
+    const space = spaces[0];
 
     res.json({
       success: true,
-      message: 'Folder deleted successfully',
+      space: {
+        spaceId: space.space_id,
+        orgId: space.org_id,
+        name: space.name,
+        description: space.description,
+        spaceType: space.space_type,
+        visibility: space.visibility,
+        ownerUserId: space.owner_user_id,
+        userRole: members[0].role,
+        fileCount: space.file_count,
+        memberCount: space.member_count,
+        createdAt: space.created_at,
+        updatedAt: space.updated_at,
+        settings: space.settings,
+      },
     });
   } catch (error) {
-    console.error('Error deleting folder:', error);
-    res.status(500).json({ error: 'Failed to delete folder' });
+    console.error('Error fetching space:', error);
+    res.status(500).json({ error: 'Failed to fetch space' });
   }
 });
 
 /**
- * POST /api/folders/:folderId/share
- * Share folder with teams
+ * GET /api/spaces/:spaceId/files
+ * Get files in space
  */
-app.post('/api/folders/:folderId/share', authenticateToken, async (req, res) => {
-  const { folderId } = req.params;
-  const { teamIds, permission = 'read' } = req.body;
+app.get('/api/spaces/:spaceId/files', authenticateToken, async (req, res) => {
+  const { spaceId } = req.params;
+  const { userId } = req.user;
+  const { limit = 100, offset = 0, sortBy = 'added_at', order = 'desc' } = req.query;
+
+  try {
+    // Verify user is space member
+    const [members] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, userId]
+    );
+
+    if (members.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
+    }
+
+    // Get files
+    const validSortFields = ['added_at', 'filename', 'file_size', 'created_at'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'added_at';
+    const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    const query = `
+      SELECT 
+        d.doc_id, d.filename, d.filepath, d.mime_type,
+        d.file_size, d.chunks, d.summary, d.status,
+        d.created_at, d.updated_at,
+        sf.added_at, sf.added_by, sf.notes, sf.tags,
+        u.name AS added_by_name
+      FROM space_files sf
+      INNER JOIN documents d ON sf.doc_id = d.doc_id
+      LEFT JOIN users u ON sf.added_by = u.user_id
+      WHERE sf.space_id = ?
+      ORDER BY ${sortField === 'filename' ? 'd.filename' : sortField === 'file_size' ? 'd.file_size' : sortField === 'created_at' ? 'd.created_at' : 'sf.added_at'} ${sortOrder}
+      LIMIT ? OFFSET ?
+    `;
+
+    const [files] = await pool.query(query, [spaceId, parseInt(limit), parseInt(offset)]);
+
+    res.json({
+      success: true,
+      files: files.map(f => ({
+        docId: f.doc_id,
+        filename: f.filename,
+        filepath: f.filepath,
+        mimeType: f.mime_type,
+        fileSize: f.file_size,
+        chunks: f.chunks,
+        summary: f.summary,
+        status: f.status,
+        addedAt: f.added_at,
+        addedBy: f.added_by,
+        addedByName: f.added_by_name,
+        notes: f.notes,
+        tags: typeof f.tags === 'string' ? JSON.parse(f.tags || '[]') : f.tags,
+        createdAt: f.created_at,
+        updatedAt: f.updated_at,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching space files:', error);
+    res.status(500).json({ error: 'Failed to fetch space files' });
+  }
+});
+
+/**
+ * GET /api/spaces/:spaceId/members
+ * Get space members
+ */
+app.get('/api/spaces/:spaceId/members', authenticateToken, async (req, res) => {
+  const { spaceId } = req.params;
   const { userId } = req.user;
 
-  if (!teamIds || !Array.isArray(teamIds) || teamIds.length === 0) {
-    return res.status(400).json({ error: 'Team IDs array is required' });
-  }
-
   try {
-    const result = await folderService.shareFolder(pool, userId, folderId, teamIds, permission);
-    res.json(result);
+    // Verify user is space member
+    const [userMembership] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, userId]
+    );
+
+    if (userMembership.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
+    }
+
+    // Get all members
+    const [members] = await pool.query(
+      `SELECT 
+        sm.user_id, sm.role, sm.joined_at, sm.added_by,
+        u.name, u.email, u.avatar_url,
+        adder.name AS added_by_name
+       FROM space_members sm
+       INNER JOIN users u ON sm.user_id = u.user_id
+       LEFT JOIN users adder ON sm.added_by = adder.user_id
+       WHERE sm.space_id = ?
+       ORDER BY sm.joined_at ASC`,
+      [spaceId]
+    );
+
+    res.json({
+      success: true,
+      members: members.map(m => ({
+        userId: m.user_id,
+        name: m.name,
+        email: m.email,
+        avatarUrl: m.avatar_url,
+        role: m.role,
+        joinedAt: m.joined_at,
+        addedBy: m.added_by,
+        addedByName: m.added_by_name,
+      })),
+    });
   } catch (error) {
-    console.error('Error sharing folder:', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/folders/:folderId/unshare
- * Unshare folder from teams
- */
-app.post('/api/folders/:folderId/unshare', authenticateToken, async (req, res) => {
-  const { folderId } = req.params;
-  const { teamIds } = req.body;
-  const { userId } = req.user;
-
-  if (!teamIds || !Array.isArray(teamIds) || teamIds.length === 0) {
-    return res.status(400).json({ error: 'Team IDs array is required' });
-  }
-
-  try {
-    const result = await folderService.unshareFolder(pool, userId, folderId, teamIds);
-    res.json(result);
-  } catch (error) {
-    console.error('Error unsharing folder:', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/folders/:folderId/sharing
- * Get folder sharing status
- */
-app.get('/api/folders/:folderId/sharing', authenticateToken, async (req, res) => {
-  const { folderId } = req.params;
-
-  try {
-    const sharing = await folderService.getFolderSharing(pool, folderId);
-    res.json(sharing);
-  } catch (error) {
-    console.error('Error fetching folder sharing:', error);
-    res.status(500).json({ error: 'Failed to fetch folder sharing' });
+    console.error('Error fetching space members:', error);
+    res.status(500).json({ error: 'Failed to fetch space members' });
   }
 });
 
@@ -968,9 +1807,9 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
     query,
     chatHistory = [],
     answerMode = 'precise',
-    folderIds = [],
+    spaceIds = [],      // NEW: query specific spaces
     additionalFilters = {},
-    chatId = null,  // New: optional chat ID
+    chatId = null,  // Optional chat ID to save messages
   } = req.body;
 
   if (!query) {
@@ -979,13 +1818,41 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
 
   // Validate and sanitize additionalFilters - remove any invalid Pinecone fields
   const sanitizedFilters = {};
-  const validMetadataFields = ['folder_id', 'doc_id', 'mime', 'title', 'visibility', 'status', 'team_ids', 'owner_user_id'];
+  const validMetadataFields = ['doc_id', 'mime', 'title', 'status', 'owner_user_id', 'filepath', 'filename'];
   
   for (const [key, value] of Object.entries(additionalFilters)) {
     if (validMetadataFields.includes(key)) {
       sanitizedFilters[key] = value;
     } else {
       console.warn(`⚠️ Ignoring invalid metadata filter field: ${key}`);
+    }
+  }
+
+  // If spaceIds provided, filter by space_ids in Pinecone metadata
+  if (spaceIds && spaceIds.length > 0) {
+    try {
+      // Verify user has access to all specified spaces
+      const placeholders = spaceIds.map(() => '?').join(',');
+      const [spaces] = await pool.query(
+        `SELECT DISTINCT sm.space_id
+         FROM space_members sm
+         WHERE sm.space_id IN (${placeholders}) AND sm.user_id = ?`,
+        [...spaceIds, userId]
+      );
+
+      if (spaces.length !== spaceIds.length) {
+        return res.status(403).json({ error: 'No access to one or more specified spaces' });
+      }
+
+      // Add space_ids filter for Pinecone
+      if (spaceIds.length === 1) {
+        sanitizedFilters.space_ids = spaceIds[0];
+      } else {
+        sanitizedFilters.space_ids = { $in: spaceIds };
+      }
+    } catch (error) {
+      console.error('Error filtering by spaces:', error);
+      return res.status(500).json({ error: 'Failed to filter by spaces' });
     }
   }
 
@@ -1035,7 +1902,7 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
       userId,
       query,
       chatHistory,
-      { answerMode, folderIds, additionalFilters: sanitizedFilters }
+      { answerMode, additionalFilters: sanitizedFilters }
     );
 
     // Step 3: If chatId provided, save assistant message
@@ -1136,24 +2003,50 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
 
 /**
  * POST /api/orgs/:orgId/query
- * Query organization documents (no AI response)
+ * Query organization documents (no AI response, just vector search)
+ * Deprecated: Use /api/orgs/:orgId/chat with spaceIds instead
  */
 app.post('/api/orgs/:orgId/query', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
   const { userId } = req.user;
-  const { query, folderIds = [], topK, threshold } = req.body;
+  const { query, spaceIds = [], topK, threshold } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
   }
 
   try {
+    // Build filter based on spaceIds if provided
+    let additionalFilters = {};
+    
+    if (spaceIds && spaceIds.length > 0) {
+      // Verify user has access to spaces
+      const placeholders = spaceIds.map(() => '?').join(',');
+      const [spaces] = await pool.query(
+        `SELECT DISTINCT sm.space_id
+         FROM space_members sm
+         WHERE sm.space_id IN (${placeholders}) AND sm.user_id = ?`,
+        [...spaceIds, userId]
+      );
+
+      if (spaces.length !== spaceIds.length) {
+        return res.status(403).json({ error: 'No access to one or more specified spaces' });
+      }
+
+      // Add space_ids filter for Pinecone
+      if (spaceIds.length === 1) {
+        additionalFilters.space_ids = spaceIds[0];
+      } else {
+        additionalFilters.space_ids = { $in: spaceIds };
+      }
+    }
+
     const matches = await chatbotClient.queryWithAuth(
       pool,
       orgId,
       userId,
       query,
-      { folderIds, topK, threshold }
+      { additionalFilters, topK, threshold }
     );
 
     res.json({
@@ -1175,57 +2068,65 @@ app.post('/api/orgs/:orgId/query', authenticateToken, verifyOrgMembership, async
 // ============================================
 
 /**
- * POST /api/orgs/:orgId/documents
- * Upload and index document
+ * POST /api/spaces/:spaceId/upload
+ * Upload and index document to a space
+ * Documents must be uploaded to a space (space membership controls access)
  */
-app.post('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, async (req, res) => {
-  const { orgId } = req.params;
+app.post('/api/spaces/:spaceId/upload', authenticateToken, async (req, res) => {
+  const { spaceId } = req.params;
   const { userId } = req.user;
-  const { folderId, filepath, filename, chunks, metadata = {} } = req.body;
+  const { filepath, filename, chunks, metadata = {} } = req.body;
 
-  if (!folderId || !filepath || !filename || !chunks || !Array.isArray(chunks)) {
+  if (!filepath || !filename || !chunks || !Array.isArray(chunks)) {
     return res.status(400).json({ 
-      error: 'folderId, filepath, filename, and chunks array are required' 
+      error: 'filepath, filename, and chunks array are required' 
     });
   }
 
   const docId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   try {
-    // Verify folder access
-    const hasAccess = await authService.checkFolderAccess(pool, userId, folderId);
-    if (!hasAccess) {
-      return res.status(403).json({ error: 'No access to this folder' });
-    }
-
-    // Get folder details
-    const [folders] = await pool.query(
-      'SELECT team_ids, visibility FROM folders WHERE folder_id = ?',
-      [folderId]
+    // Verify user has contributor or owner role in space
+    const [members] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, userId]
     );
 
-    if (folders.length === 0) {
-      return res.status(404).json({ error: 'Folder not found' });
+    if (members.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
     }
 
-    const folder = folders[0];
-    const teamIds = folder.team_ids ? JSON.parse(folder.team_ids) : [];
+    const role = members[0].role;
+    if (role === 'viewer') {
+      return res.status(403).json({ error: 'Viewers cannot upload files' });
+    }
 
-    // Build vectors
+    // Get space details for org_id
+    const [spaces] = await pool.query(
+      'SELECT org_id FROM spaces WHERE space_id = ?',
+      [spaceId]
+    );
+
+    if (spaces.length === 0) {
+      return res.status(404).json({ error: 'Space not found' });
+    }
+
+    const orgId = spaces[0].org_id;
+
+    // Build vectors with org-level metadata
+    // Access control managed via space_ids array
     const vectors = chunks.map((chunk, i) => ({
       id: `${docId}:${i}`,
       text: chunk.text,
       metadata: {
-        // Access control fields
+        // Core identification
         org_id: orgId,
         owner_user_id: userId,
-        team_ids: teamIds,
-        visibility: folder.visibility,
-        folder_id: folderId,
-        
-        // Document identification
         doc_id: docId,
         chunk_no: i,
+        
+        // Space associations (for access control)
+        space_ids: [spaceId],  // Initially just this space
         
         // File metadata
         filename,
@@ -1242,9 +2143,8 @@ app.post('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, a
         created_at: Date.now(),
         updated_at: Date.now(),
         
-        // Non-redundant metadata (important for search/reconstruction)
+        // Optional metadata
         summary: metadata.summary || '',
-        smartFolderNames: metadata.smartFolderNames || [],
       },
     }));
 
@@ -1267,14 +2167,13 @@ app.post('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, a
 
     await chatbotClient.upsertVectors(orgId, vectorsToUpsert);
 
-    // Store document in DB with all fields in dedicated columns
+    // Store document in DB
     await pool.query(
       `INSERT INTO documents 
-       (doc_id, folder_id, org_id, owner_user_id, filepath, filename, mime_type, file_size, content_hash, chunks, summary, smart_folder_ids, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (doc_id, org_id, owner_user_id, filepath, filename, mime_type, file_size, content_hash, chunks, summary, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         docId, 
-        folderId, 
         orgId, 
         userId, 
         filepath, 
@@ -1284,19 +2183,300 @@ app.post('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, a
         metadata.hash || '',
         vectors.length,
         metadata.summary || null,
-        JSON.stringify(metadata.smartFolderNames || []),
         'active'
       ]
+    );
+
+    // Add document to space
+    await pool.query(
+      `INSERT INTO space_files (space_id, doc_id, added_by)
+       VALUES (?, ?, ?)`,
+      [spaceId, docId, userId]
+    );
+
+    // Log activity
+    await pool.query(
+      `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+       VALUES (?, ?, 'file_added', ?)`,
+      [spaceId, userId, JSON.stringify({ doc_id: docId, filename })]
     );
 
     res.status(201).json({
       success: true,
       docId,
+      spaceId,
       vectorCount: vectors.length,
     });
   } catch (error) {
     console.error('Error uploading document:', error);
     res.status(500).json({ error: 'Failed to upload document' });
+  }
+});
+
+/**
+ * Helper: Update space_ids in Pinecone for a document
+ * Called when adding/removing files from spaces
+ */
+async function updateDocumentSpaceIds(orgId, docId, spaceId, action = 'add') {
+  try {
+    const pc = new (await import('@pinecone-database/pinecone')).Pinecone({ 
+      apiKey: config.pinecone.apiKey 
+    });
+    const indexName = config.pinecone.indexName;
+    const index = pc.index(indexName);
+    const namespace = `org_${orgId}`;
+
+    // Get document metadata to find chunk count
+    const [docs] = await pool.query(
+      'SELECT chunks FROM documents WHERE doc_id = ?',
+      [docId]
+    );
+
+    if (docs.length === 0) {
+      throw new Error(`Document ${docId} not found`);
+    }
+
+    const chunkCount = docs[0].chunks;
+    const vectorIds = [];
+    for (let i = 0; i < chunkCount; i++) {
+      vectorIds.push(`${docId}:${i}`);
+    }
+
+    // Fetch current vectors to get their metadata
+    const fetchResult = await index.namespace(namespace).fetch(vectorIds);
+    
+    // Update each vector's space_ids
+    const updates = [];
+    for (const [vectorId, vector] of Object.entries(fetchResult.records || {})) {
+      if (!vector || !vector.metadata) continue;
+
+      const currentSpaceIds = vector.metadata.space_ids || [];
+      let newSpaceIds;
+
+      if (action === 'add') {
+        // Add space to array (avoid duplicates)
+        newSpaceIds = [...new Set([...currentSpaceIds, spaceId])];
+      } else if (action === 'remove') {
+        // Remove space from array
+        newSpaceIds = currentSpaceIds.filter(id => id !== spaceId);
+      }
+
+      updates.push({
+        id: vectorId,
+        metadata: { space_ids: newSpaceIds }
+      });
+    }
+
+    // Batch update vectors (Pinecone supports up to 100 per batch)
+    const batchSize = 100;
+    for (let i = 0; i < updates.length; i += batchSize) {
+      const batch = updates.slice(i, i + batchSize);
+      
+      // Update each vector in the batch
+      for (const update of batch) {
+        await index.namespace(namespace).update({
+          id: update.id,
+          metadata: update.metadata
+        });
+      }
+    }
+
+    console.log(`✅ Updated ${updates.length} vectors for doc ${docId}: ${action} space ${spaceId}`);
+    return { success: true, updatedCount: updates.length };
+  } catch (error) {
+    console.error(`Error updating space_ids for ${docId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * POST /api/spaces/:spaceId/files
+ * Add existing documents to a space
+ */
+app.post('/api/spaces/:spaceId/files', authenticateToken, async (req, res) => {
+  const { spaceId } = req.params;
+  const { userId } = req.user;
+  const { docIds, notes, tags = [] } = req.body;
+
+  if (!docIds || !Array.isArray(docIds) || docIds.length === 0) {
+    return res.status(400).json({ 
+      error: 'docIds array is required' 
+    });
+  }
+
+  try {
+    // Verify user has contributor or owner role in space
+    const [members] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, userId]
+    );
+
+    if (members.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
+    }
+
+    const role = members[0].role;
+    if (role === 'viewer') {
+      return res.status(403).json({ error: 'Viewers cannot add files' });
+    }
+
+    // Get space details
+    const [spaces] = await pool.query(
+      'SELECT org_id FROM spaces WHERE space_id = ?',
+      [spaceId]
+    );
+
+    if (spaces.length === 0) {
+      return res.status(404).json({ error: 'Space not found' });
+    }
+
+    const orgId = spaces[0].org_id;
+
+    // Verify all documents exist and belong to this org
+    const placeholders = docIds.map(() => '?').join(',');
+    const [docs] = await pool.query(
+      `SELECT doc_id, filename FROM documents WHERE doc_id IN (${placeholders}) AND org_id = ?`,
+      [...docIds, orgId]
+    );
+
+    if (docs.length !== docIds.length) {
+      return res.status(404).json({ 
+        error: 'One or more documents not found or not in this organization' 
+      });
+    }
+
+    let addedCount = 0;
+    const results = [];
+
+    for (const doc of docs) {
+      try {
+        // Check if already in space
+        const [existing] = await pool.query(
+          'SELECT 1 FROM space_files WHERE space_id = ? AND doc_id = ?',
+          [spaceId, doc.doc_id]
+        );
+
+        if (existing.length > 0) {
+          results.push({ doc_id: doc.doc_id, status: 'already_exists' });
+          continue;
+        }
+
+        // Add to space_files table
+        await pool.query(
+          `INSERT INTO space_files (space_id, doc_id, added_by, notes, tags)
+           VALUES (?, ?, ?, ?, ?)`,
+          [spaceId, doc.doc_id, userId, notes || null, JSON.stringify(tags)]
+        );
+
+        // Update Pinecone metadata to add this space to space_ids
+        await updateDocumentSpaceIds(orgId, doc.doc_id, spaceId, 'add');
+
+        // Log activity
+        await pool.query(
+          `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+           VALUES (?, ?, 'file_added', ?)`,
+          [spaceId, userId, JSON.stringify({ doc_id: doc.doc_id, filename: doc.filename })]
+        );
+
+        addedCount++;
+        results.push({ doc_id: doc.doc_id, status: 'added' });
+      } catch (error) {
+        console.error(`Error adding doc ${doc.doc_id} to space:`, error);
+        results.push({ doc_id: doc.doc_id, status: 'error', error: error.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      addedCount,
+      results
+    });
+  } catch (error) {
+    console.error('Error adding files to space:', error);
+    res.status(500).json({ error: 'Failed to add files to space' });
+  }
+});
+
+/**
+ * DELETE /api/spaces/:spaceId/files/:docId
+ * Remove a file from a space
+ */
+app.delete('/api/spaces/:spaceId/files/:docId', authenticateToken, async (req, res) => {
+  const { spaceId, docId } = req.params;
+  const { userId } = req.user;
+
+  try {
+    // Verify user has permission
+    const [members] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, userId]
+    );
+
+    if (members.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
+    }
+
+    const role = members[0].role;
+
+    // Get file info
+    const [spaceFiles] = await pool.query(
+      'SELECT added_by FROM space_files WHERE space_id = ? AND doc_id = ?',
+      [spaceId, docId]
+    );
+
+    if (spaceFiles.length === 0) {
+      return res.status(404).json({ error: 'File not found in this space' });
+    }
+
+    // Check permissions: owner can remove any file, contributor can only remove own files
+    if (role === 'viewer') {
+      return res.status(403).json({ error: 'Viewers cannot remove files' });
+    }
+
+    if (role === 'contributor' && spaceFiles[0].added_by !== userId) {
+      return res.status(403).json({ error: 'Contributors can only remove files they added' });
+    }
+
+    // Get space org_id
+    const [spaces] = await pool.query(
+      'SELECT org_id FROM spaces WHERE space_id = ?',
+      [spaceId]
+    );
+
+    const orgId = spaces[0].org_id;
+
+    // Get document filename for activity log
+    const [docs] = await pool.query(
+      'SELECT filename FROM documents WHERE doc_id = ?',
+      [docId]
+    );
+
+    // Remove from space_files
+    await pool.query(
+      'DELETE FROM space_files WHERE space_id = ? AND doc_id = ?',
+      [spaceId, docId]
+    );
+
+    // Update Pinecone metadata to remove this space from space_ids
+    await updateDocumentSpaceIds(orgId, docId, spaceId, 'remove');
+
+    // Log activity
+    await pool.query(
+      `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+       VALUES (?, ?, 'file_removed', ?)`,
+      [spaceId, userId, JSON.stringify({ 
+        doc_id: docId, 
+        filename: docs[0]?.filename 
+      })]
+    );
+
+    res.json({
+      success: true,
+      message: 'File removed from space'
+    });
+  } catch (error) {
+    console.error('Error removing file from space:', error);
+    res.status(500).json({ error: 'Failed to remove file from space' });
   }
 });
 
@@ -1409,58 +2589,60 @@ app.get('/api/orgs/:orgId/documents', authenticateToken, verifyOrgMembership, as
   console.log('🔍 Fetching all documents for organization:', { orgId, userId });
 
   try {
-    // Query all active documents for this organization
-    const [documents] = await pool.query(
-      `SELECT 
-        doc_id, folder_id, filepath, filename, mime_type, file_size, content_hash, 
-        chunks, summary, smart_folder_ids, status, created_at, updated_at
-       FROM documents 
-       WHERE org_id = ? AND status = 'active'
-       ORDER BY created_at DESC`,
-      [orgId]
+    // Get user's accessible spaces
+    const [accessibleSpaces] = await pool.query(
+      `SELECT DISTINCT space_id 
+       FROM space_members 
+       WHERE user_id = ?`,
+      [userId]
     );
 
-    console.log(`📋 Found ${documents.length} documents for organization`);
+    const spaceIds = accessibleSpaces.map(s => s.space_id);
 
-    // Filter documents based on folder access
-    const accessibleDocuments = [];
-    for (const doc of documents) {
-      const hasAccess = await authService.checkFolderAccess(pool, userId, doc.folder_id);
-      if (hasAccess) {
-        // Parse smart_folder_ids JSON array
-        let smartFolderIds = [];
-        if (doc.smart_folder_ids) {
-          try {
-            smartFolderIds = typeof doc.smart_folder_ids === 'string' 
-              ? JSON.parse(doc.smart_folder_ids) 
-              : doc.smart_folder_ids;
-          } catch (e) {
-            console.warn('⚠️ Failed to parse smart_folder_ids:', e);
-          }
-        }
-
-        accessibleDocuments.push({
-          docId: doc.doc_id,
-          folderId: doc.folder_id,
-          filepath: doc.filepath,
-          filename: doc.filename,
-          mimeType: doc.mime_type,
-          fileSize: doc.file_size,
-          contentHash: doc.content_hash,
-          chunks: doc.chunks,
-          summary: doc.summary,
-          smartFolderIds: smartFolderIds,
-          status: doc.status,
-          createdAt: doc.created_at,
-          updatedAt: doc.updated_at,
-        });
-      }
+    if (spaceIds.length === 0) {
+      return res.json({
+        success: true,
+        totalDocuments: 0,
+        accessibleDocuments: 0,
+        documents: [],
+      });
     }
+
+    // Get documents from accessible spaces
+    const placeholders = spaceIds.map(() => '?').join(',');
+    const [documents] = await pool.query(
+      `SELECT DISTINCT
+        d.doc_id, d.filepath, d.filename, d.mime_type, d.file_size, d.content_hash, 
+        d.chunks, d.summary, d.status, d.created_at, d.updated_at
+       FROM documents d
+       INNER JOIN space_files sf ON d.doc_id = sf.doc_id
+       WHERE sf.space_id IN (${placeholders}) 
+         AND d.org_id = ? 
+         AND d.status = 'active'
+       ORDER BY d.created_at DESC`,
+      [...spaceIds, orgId]
+    );
+
+    console.log(`📋 Found ${documents.length} accessible documents for user`);
+
+    const accessibleDocuments = documents.map(doc => ({
+      docId: doc.doc_id,
+      filepath: doc.filepath,
+      filename: doc.filename,
+      mimeType: doc.mime_type,
+      fileSize: doc.file_size,
+      contentHash: doc.content_hash,
+      chunks: doc.chunks,
+      summary: doc.summary,
+      status: doc.status,
+      createdAt: doc.created_at,
+      updatedAt: doc.updated_at,
+    }));
 
     res.json({
       success: true,
       totalDocuments: documents.length,
-      accessibleDocuments: accessibleDocuments.length,
+      accessibleDocuments: documents.length,
       documents: accessibleDocuments,
     });
   } catch (error) {
@@ -1483,8 +2665,8 @@ app.get('/api/orgs/:orgId/documents/:docId', authenticateToken, verifyOrgMembers
     // Query document from database
     const [documents] = await pool.query(
       `SELECT 
-        doc_id, folder_id, org_id, owner_user_id, filepath, filename, 
-        mime_type, file_size, content_hash, chunks, summary, smart_folder_ids,
+        doc_id, org_id, owner_user_id, filepath, filename, 
+        mime_type, file_size, content_hash, chunks, summary,
         status, created_at, updated_at
        FROM documents 
        WHERE doc_id = ? AND org_id = ?`,
@@ -1497,29 +2679,24 @@ app.get('/api/orgs/:orgId/documents/:docId', authenticateToken, verifyOrgMembers
 
     const document = documents[0];
 
-    // Check folder access
-    const hasAccess = await authService.checkFolderAccess(pool, userId, document.folder_id);
-    if (!hasAccess) {
-      return res.status(403).json({ error: 'No access to this document' });
-    }
+    // Check if user has access via any space
+    const [spaceAccess] = await pool.query(
+      `SELECT sf.space_id 
+       FROM space_files sf
+       INNER JOIN space_members sm ON sf.space_id = sm.space_id
+       WHERE sf.doc_id = ? AND sm.user_id = ?
+       LIMIT 1`,
+      [docId, userId]
+    );
 
-    // Parse smart_folder_ids JSON array
-    let smartFolderIds = [];
-    if (document.smart_folder_ids) {
-      try {
-        smartFolderIds = typeof document.smart_folder_ids === 'string' 
-          ? JSON.parse(document.smart_folder_ids) 
-          : document.smart_folder_ids;
-      } catch (e) {
-        console.warn('⚠️ Failed to parse smart_folder_ids:', e);
-      }
+    if (spaceAccess.length === 0) {
+      return res.status(403).json({ error: 'No access to this document' });
     }
 
     res.json({
       success: true,
       document: {
         docId: document.doc_id,
-        folderId: document.folder_id,
         orgId: document.org_id,
         ownerUserId: document.owner_user_id,
         filepath: document.filepath,
@@ -1529,7 +2706,6 @@ app.get('/api/orgs/:orgId/documents/:docId', authenticateToken, verifyOrgMembers
         contentHash: document.content_hash,
         chunks: document.chunks,
         summary: document.summary,
-        smartFolderIds: smartFolderIds,
         status: document.status,
         createdAt: document.created_at,
         updatedAt: document.updated_at,
@@ -1575,10 +2751,24 @@ app.get('/api/orgs/:orgId/documents/:docId/vectors', authenticateToken, verifyOr
 
     console.log(`📋 Found ${queryResult.matches.length} vectors for document`);
 
-    // Check access for the first vector (all vectors in same doc should have same access)
+    // Check access via space membership (all vectors in same doc should have same space_ids)
     const firstVector = queryResult.matches[0];
-    const hasAccess = await authService.checkVectorAccess(pool, userId, firstVector.metadata);
-    if (!hasAccess) {
+    const spaceIds = firstVector.metadata?.space_ids || [];
+    
+    if (spaceIds.length === 0) {
+      return res.status(403).json({ error: 'No access to this document - not in any space' });
+    }
+
+    // Check if user is member of any of the document's spaces
+    const placeholders = spaceIds.map(() => '?').join(',');
+    const [access] = await pool.query(
+      `SELECT space_id FROM space_members 
+       WHERE space_id IN (${placeholders}) AND user_id = ? 
+       LIMIT 1`,
+      [...spaceIds, userId]
+    );
+
+    if (access.length === 0) {
       return res.status(403).json({ error: 'No access to this document' });
     }
 
@@ -1668,9 +2858,23 @@ app.get('/api/orgs/:orgId/vectors/:vectorId', authenticateToken, verifyOrgMember
     const vector = fetchResult.records[vectorId];
     const metadata = vector.metadata;
 
-    // Check if user has access to this vector
-    const hasAccess = await authService.checkVectorAccess(pool, userId, metadata);
-    if (!hasAccess) {
+    // Check if user has access via space membership
+    const spaceIds = metadata?.space_ids || [];
+    
+    if (spaceIds.length === 0) {
+      return res.status(403).json({ error: 'No access to this vector - not in any space' });
+    }
+
+    // Check if user is member of any of the vector's spaces
+    const placeholders = spaceIds.map(() => '?').join(',');
+    const [access] = await pool.query(
+      `SELECT space_id FROM space_members 
+       WHERE space_id IN (${placeholders}) AND user_id = ? 
+       LIMIT 1`,
+      [...spaceIds, userId]
+    );
+
+    if (access.length === 0) {
       return res.status(403).json({ error: 'No access to this vector' });
     }
 
@@ -1754,10 +2958,21 @@ app.post('/api/orgs/:orgId/vectors/query-all', authenticateToken, verifyOrgMembe
     
     console.log(`✅ Retrieved ${queryResult.matches?.length || 0} vectors from Pinecone for org ${orgId}`);
 
-    // Filter vectors to only include those the user has access to
+    // Filter vectors to only include those the user has access to via space membership
+    // First, get all user's accessible spaces
+    const [userSpaces] = await pool.query(
+      'SELECT space_id FROM space_members WHERE user_id = ?',
+      [userId]
+    );
+    const accessibleSpaceIds = userSpaces.map(s => s.space_id);
+
     const accessibleMatches = [];
     for (const match of queryResult.matches || []) {
-      const hasAccess = await authService.checkVectorAccess(pool, userId, match.metadata);
+      const vectorSpaceIds = match.metadata?.space_ids || [];
+      
+      // Check if any of the vector's spaces are accessible to the user
+      const hasAccess = vectorSpaceIds.some(spaceId => accessibleSpaceIds.includes(spaceId));
+      
       if (hasAccess) {
         accessibleMatches.push(match);
       }
@@ -1839,13 +3054,13 @@ app.post('/delete-vectors', authenticateToken, async (req, res) => {
 app.post('/api/orgs/:orgId/chats', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
   const { userId } = req.user;
-  const { title, description, folderIds = [], fileIds = [], metadata = {} } = req.body;
+  const { title, description, spaceIds = [], fileIds = [], metadata = {} } = req.body;
 
   const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   try {
     await pool.query(
-      `INSERT INTO chats (chat_id, org_id, user_id, title, description, folder_ids, file_ids, metadata)
+      `INSERT INTO chats (chat_id, org_id, user_id, title, description, space_ids, file_ids, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         chatId, 
@@ -1853,7 +3068,7 @@ app.post('/api/orgs/:orgId/chats', authenticateToken, verifyOrgMembership, async
         userId, 
         title || 'New Chat', 
         description, 
-        JSON.stringify(folderIds || []), 
+        JSON.stringify(spaceIds || []), 
         JSON.stringify(fileIds || []), 
         JSON.stringify(metadata || {})
       ]
@@ -1867,7 +3082,7 @@ app.post('/api/orgs/:orgId/chats', authenticateToken, verifyOrgMembership, async
         userId,
         title: title || 'New Chat',
         description,
-        folderIds,
+        spaceIds,
         fileIds,
         messageCount: 0,
         createdAt: new Date().toISOString(),
@@ -1995,7 +3210,7 @@ app.get('/api/chats/:chatId', authenticateToken, async (req, res) => {
         userId: chat.user_id,
         title: chat.title,
         description: chat.description,
-        folderIds: safeJSONParse(chat.folder_ids, []),
+        spaceIds: safeJSONParse(chat.space_ids, []),
         fileIds: safeJSONParse(chat.file_ids, []),
         messageCount: chat.message_count,
         totalTokens: chat.total_tokens,
@@ -2029,7 +3244,7 @@ app.get('/api/chats/:chatId', authenticateToken, async (req, res) => {
 app.put('/api/chats/:chatId', authenticateToken, async (req, res) => {
   const { chatId } = req.params;
   const { userId } = req.user;
-  const { title, description, archived, folderIds, fileIds, tags } = req.body;
+  const { title, description, archived, spaceIds, fileIds, tags } = req.body;
 
   try {
     // Check user's permission level (owner or write access)
@@ -2058,8 +3273,8 @@ app.put('/api/chats/:chatId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Only owner can update chat metadata (title, description, archive, tags)' });
     }
 
-    // Both owner and write users can update folderIds/fileIds (query scope)
-    if (!isOwner && !hasWriteAccess && (folderIds !== undefined || fileIds !== undefined)) {
+    // Both owner and write users can update spaceIds/fileIds (query scope)
+    if (!isOwner && !hasWriteAccess && (spaceIds !== undefined || fileIds !== undefined)) {
       return res.status(403).json({ error: 'Need write permission to update query scope' });
     }
 
@@ -2079,9 +3294,9 @@ app.put('/api/chats/:chatId', authenticateToken, async (req, res) => {
       updates.push('archived = ?');
       values.push(archived);
     }
-    if (folderIds !== undefined) {
-      updates.push('folder_ids = ?');
-      values.push(JSON.stringify(folderIds));
+    if (spaceIds !== undefined) {
+      updates.push('space_ids = ?');
+      values.push(JSON.stringify(spaceIds));
     }
     if (fileIds !== undefined) {
       updates.push('file_ids = ?');
@@ -2417,6 +3632,651 @@ app.delete('/api/chats/:chatId/share', authenticateToken, async (req, res) => {
     console.error('Error unsharing chat:', error);
     res.status(500).json({ error: 'Failed to unshare chat' });
   }
+});
+
+// ============================================
+// Organization Invitation Endpoints
+// ============================================
+
+/**
+ * POST /api/organizations/:orgId/invitations
+ * Create a new organization invitation (Admin only)
+ */
+app.post('/api/organizations/:orgId/invitations', authenticateToken, verifyOrgMembership, async (req, res) => {
+  const { orgId } = req.params;
+  const { email, role, message } = req.body;
+  const inviterId = req.user.userId;
+  
+  try {
+    // 1. Validate permissions
+    if (!await isOrgAdmin(inviterId, orgId)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin or owner role required to send invitations'
+      });
+    }
+    
+    // 2. Validate input
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid email address is required'
+      });
+    }
+    
+    if (!role || !INVITATION_CONFIG.ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: `Role must be one of: ${INVITATION_CONFIG.ALLOWED_ROLES.join(', ')}`
+      });
+    }
+    
+    if (message && message.length > INVITATION_CONFIG.MAX_MESSAGE_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: `Message must be ${INVITATION_CONFIG.MAX_MESSAGE_LENGTH} characters or less`
+      });
+    }
+    
+    // 3. Check if user is already a member
+    const [existingMembers] = await pool.query(
+      `SELECT om.user_id, u.email 
+       FROM org_members om 
+       JOIN users u ON om.user_id = u.user_id 
+       WHERE om.org_id = ? AND u.email = ?`,
+      [orgId, email]
+    );
+    
+    if (existingMembers.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'User is already a member of this organization'
+      });
+    }
+    
+    // 4. Check for existing pending invitation
+    const [pendingInvitations] = await pool.query(
+      `SELECT invitation_id FROM org_invitations 
+       WHERE org_id = ? AND invitee_email = ? AND status = 'pending' AND expires_at > NOW()`,
+      [orgId, email]
+    );
+    
+    if (pendingInvitations.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'An active invitation already exists for this email'
+      });
+    }
+    
+    // 5. Check rate limits
+    const rateLimitCheck = await checkInvitationRateLimits(orgId, email);
+    if (!rateLimitCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: rateLimitCheck.reason
+      });
+    }
+    
+    // 6. Generate secure token
+    const invitationToken = generateInvitationToken();
+    
+    // 7. Create invitation
+    const [result] = await pool.query(
+      `INSERT INTO org_invitations 
+       (org_id, inviter_id, invitee_email, role, invitation_token, message, metadata) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        orgId,
+        inviterId,
+        email.toLowerCase(),
+        role,
+        invitationToken,
+        message || null,
+        JSON.stringify({
+          ip_address: req.ip || req.connection.remoteAddress,
+          user_agent: req.get('user-agent')
+        })
+      ]
+    );
+    
+    const invitationId = result.insertId;
+    
+    // 8. Get complete invitation details
+    const [invitations] = await pool.query(
+      `SELECT * FROM org_invitations WHERE invitation_id = ?`,
+      [invitationId]
+    );
+    
+    const invitation = invitations[0];
+    
+    // 9. Get org and inviter details for email
+    const [orgs] = await pool.query('SELECT * FROM orgs WHERE org_id = ?', [orgId]);
+    const [inviters] = await pool.query('SELECT * FROM users WHERE user_id = ?', [inviterId]);
+    
+    // 10. Send invitation email
+    try {
+      await sendInvitationEmail(invitation, orgs[0], inviters[0]);
+    } catch (emailError) {
+      console.error('Error sending email:', emailError);
+      // Don't fail the request if email fails
+    }
+    
+    // 11. Log activity
+    await logInvitationActivity(invitationId, 'created', inviterId, {
+      email: email,
+      role: role
+    }, req);
+    
+    // 12. Return success response
+    res.status(201).json({
+      success: true,
+      invitation: {
+        invitationId: invitation.invitation_id,
+        orgId: invitation.org_id,
+        email: invitation.invitee_email,
+        role: invitation.role,
+        token: invitation.invitation_token,
+        invitationLink: `${process.env.APP_URL || 'http://localhost:3000'}/accept-invitation/${invitation.invitation_token}`,
+        expiresAt: invitation.expires_at,
+        status: invitation.status,
+        createdAt: invitation.created_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error creating invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create invitation'
+    });
+  }
+});
+
+/**
+ * GET /api/invitations/:token
+ * Get invitation details by token (public endpoint)
+ */
+app.get('/api/invitations/:token', async (req, res) => {
+  const { token } = req.params;
+  
+  try {
+    // Get invitation with org and inviter details
+    const [invitations] = await pool.query(
+      `SELECT 
+        i.*,
+        o.name as org_name,
+        o.plan as org_plan,
+        u.name as inviter_name,
+        u.email as inviter_email,
+        u.avatar_url as inviter_avatar
+       FROM org_invitations i
+       JOIN orgs o ON i.org_id = o.org_id
+       JOIN users u ON i.inviter_id = u.user_id
+       WHERE i.invitation_token = ?`,
+      [token]
+    );
+    
+    if (invitations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+    
+    const invitation = invitations[0];
+    
+    // Check if invitation is still valid
+    if (invitation.status !== 'pending') {
+      return res.status(410).json({
+        success: false,
+        error: `Invitation has been ${invitation.status}`,
+        status: invitation.status
+      });
+    }
+    
+    // Check if expired
+    if (new Date(invitation.expires_at) < new Date()) {
+      // Auto-expire the invitation
+      await pool.query(
+        'UPDATE org_invitations SET status = ? WHERE invitation_id = ?',
+        ['expired', invitation.invitation_id]
+      );
+      
+      return res.status(410).json({
+        success: false,
+        error: 'Invitation has expired'
+      });
+    }
+    
+    // Log view activity
+    await logInvitationActivity(invitation.invitation_id, 'viewed', null, {}, req);
+    
+    // Return invitation details
+    res.json({
+      success: true,
+      invitation: {
+        organizationId: invitation.org_id,
+        organizationName: invitation.org_name,
+        organizationPlan: invitation.org_plan,
+        inviterName: invitation.inviter_name,
+        inviterEmail: invitation.inviter_email,
+        inviterAvatar: invitation.inviter_avatar,
+        email: invitation.invitee_email,
+        role: invitation.role,
+        message: invitation.message,
+        expiresAt: invitation.expires_at,
+        status: invitation.status,
+        createdAt: invitation.created_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error getting invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve invitation'
+    });
+  }
+});
+
+/**
+ * POST /api/invitations/:token/accept
+ * Accept an organization invitation
+ */
+app.post('/api/invitations/:token/accept', authenticateToken, async (req, res) => {
+  const { token } = req.params;
+  const userId = req.user.userId;
+  const userEmail = req.user.email;
+  
+  try {
+    // Get invitation
+    const [invitations] = await pool.query(
+      `SELECT i.*, o.name as org_name 
+       FROM org_invitations i
+       JOIN orgs o ON i.org_id = o.org_id
+       WHERE i.invitation_token = ?`,
+      [token]
+    );
+    
+    if (invitations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+    
+    const invitation = invitations[0];
+    
+    // Verify email matches
+    if (invitation.invitee_email.toLowerCase() !== userEmail.toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        error: 'This invitation was sent to a different email address'
+      });
+    }
+    
+    // Check invitation status
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: `Invitation has already been ${invitation.status}`
+      });
+    }
+    
+    // Check if expired
+    if (new Date(invitation.expires_at) < new Date()) {
+      await pool.query(
+        'UPDATE org_invitations SET status = ? WHERE invitation_id = ?',
+        ['expired', invitation.invitation_id]
+      );
+      
+      return res.status(410).json({
+        success: false,
+        error: 'Invitation has expired'
+      });
+    }
+    
+    // Begin transaction
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    try {
+      // Add user to organization
+      await connection.query(
+        `INSERT INTO org_members (org_id, user_id, role, invited_by) 
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
+        [invitation.org_id, userId, invitation.role, invitation.inviter_id]
+      );
+      
+      // Update invitation status
+      await connection.query(
+        `UPDATE org_invitations 
+         SET status = 'accepted', accepted_at = NOW() 
+         WHERE invitation_id = ?`,
+        [invitation.invitation_id]
+      );
+      
+      // Log to audit log
+      await connection.query(
+        `INSERT INTO audit_log (org_id, user_id, action, resource_type, resource_id, details) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          invitation.org_id,
+          userId,
+          'invitation_accepted',
+          'invitation',
+          invitation.invitation_id,
+          JSON.stringify({
+            inviter_id: invitation.inviter_id,
+            role: invitation.role
+          })
+        ]
+      );
+      
+      // Commit transaction
+      await connection.commit();
+      connection.release();
+      
+      // Log activity
+      await logInvitationActivity(invitation.invitation_id, 'accepted', userId, {
+        org_id: invitation.org_id,
+        role: invitation.role
+      }, req);
+      
+      // Return success
+      res.json({
+        success: true,
+        organizationId: invitation.org_id,
+        organizationName: invitation.org_name,
+        role: invitation.role,
+        message: `Successfully joined ${invitation.org_name}`
+      });
+      
+    } catch (txError) {
+      await connection.rollback();
+      connection.release();
+      throw txError;
+    }
+    
+  } catch (error) {
+    console.error('Error accepting invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to accept invitation'
+    });
+  }
+});
+
+/**
+ * POST /api/invitations/:token/decline
+ * Decline an organization invitation
+ */
+app.post('/api/invitations/:token/decline', async (req, res) => {
+  const { token } = req.params;
+  const userId = req.user?.userId; // Optional authentication
+  
+  try {
+    // Get invitation
+    const [invitations] = await pool.query(
+      'SELECT * FROM org_invitations WHERE invitation_token = ?',
+      [token]
+    );
+    
+    if (invitations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+    
+    const invitation = invitations[0];
+    
+    // Check invitation status
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: `Invitation has already been ${invitation.status}`
+      });
+    }
+    
+    // Update invitation status
+    await pool.query(
+      'UPDATE org_invitations SET status = ?, declined_at = NOW() WHERE invitation_id = ?',
+      ['declined', invitation.invitation_id]
+    );
+    
+    // Log activity
+    await logInvitationActivity(invitation.invitation_id, 'declined', userId, {}, req);
+    
+    res.json({
+      success: true,
+      message: 'Invitation declined'
+    });
+    
+  } catch (error) {
+    console.error('Error declining invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to decline invitation'
+    });
+  }
+});
+
+/**
+ * GET /api/organizations/:orgId/invitations
+ * List all invitations for an organization (Admin only)
+ */
+app.get('/api/organizations/:orgId/invitations', authenticateToken, verifyOrgMembership, async (req, res) => {
+  const { orgId } = req.params;
+  const inviterId = req.user.userId;
+  const { status, limit = 50, offset = 0 } = req.query;
+  
+  try {
+    // Validate permissions
+    if (!await isOrgAdmin(inviterId, orgId)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin or owner role required'
+      });
+    }
+    
+    // Build query
+    let query = `
+      SELECT 
+        i.*,
+        u.name as inviter_name,
+        u.email as inviter_email
+      FROM org_invitations i
+      JOIN users u ON i.inviter_id = u.user_id
+      WHERE i.org_id = ?
+    `;
+    
+    const params = [orgId];
+    
+    if (status) {
+      query += ' AND i.status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY i.created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), parseInt(offset));
+    
+    // Get invitations
+    const [invitations] = await pool.query(query, params);
+    
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) as total FROM org_invitations WHERE org_id = ?';
+    const countParams = [orgId];
+    
+    if (status) {
+      countQuery += ' AND status = ?';
+      countParams.push(status);
+    }
+    
+    const [countResult] = await pool.query(countQuery, countParams);
+    
+    res.json({
+      success: true,
+      invitations: invitations.map(inv => ({
+        invitationId: inv.invitation_id,
+        email: inv.invitee_email,
+        role: inv.role,
+        status: inv.status,
+        message: inv.message,
+        inviterName: inv.inviter_name,
+        inviterEmail: inv.inviter_email,
+        createdAt: inv.created_at,
+        expiresAt: inv.expires_at,
+        acceptedAt: inv.accepted_at,
+        declinedAt: inv.declined_at,
+        revokedAt: inv.revoked_at
+      })),
+      pagination: {
+        total: countResult[0].total,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error listing invitations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to list invitations'
+    });
+  }
+});
+
+/**
+ * DELETE /api/invitations/:invitationId
+ * Revoke (cancel) an invitation (Admin only)
+ */
+app.delete('/api/invitations/:invitationId', authenticateToken, async (req, res) => {
+  const { invitationId } = req.params;
+  const userId = req.user.userId;
+  
+  try {
+    // Get invitation
+    const [invitations] = await pool.query(
+      'SELECT * FROM org_invitations WHERE invitation_id = ?',
+      [invitationId]
+    );
+    
+    if (invitations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+    
+    const invitation = invitations[0];
+    
+    // Check permissions
+    if (!await isOrgAdmin(userId, invitation.org_id)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin or owner role required'
+      });
+    }
+    
+    // Check if already processed
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot revoke invitation with status: ${invitation.status}`
+      });
+    }
+    
+    // Revoke invitation
+    await pool.query(
+      'UPDATE org_invitations SET status = ?, revoked_at = NOW(), revoked_by = ? WHERE invitation_id = ?',
+      ['revoked', userId, invitationId]
+    );
+    
+    // Log activity
+    await logInvitationActivity(invitationId, 'revoked', userId, {
+      revoked_by: userId
+    }, req);
+    
+    res.json({
+      success: true,
+      message: 'Invitation revoked'
+    });
+    
+  } catch (error) {
+    console.error('Error revoking invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to revoke invitation'
+    });
+  }
+});
+
+/**
+ * GET /api/users/me/invitations
+ * Get all pending invitations for the current user
+ */
+app.get('/api/users/me/invitations', authenticateToken, async (req, res) => {
+  const userEmail = req.user.email;
+  
+  try {
+    const [invitations] = await pool.query(
+      `SELECT 
+        i.*,
+        o.name as org_name,
+        o.plan as org_plan,
+        u.name as inviter_name,
+        u.email as inviter_email,
+        u.avatar_url as inviter_avatar
+       FROM org_invitations i
+       JOIN orgs o ON i.org_id = o.org_id
+       JOIN users u ON i.inviter_id = u.user_id
+       WHERE i.invitee_email = ? 
+       AND i.status = 'pending'
+       AND i.expires_at > NOW()
+       ORDER BY i.created_at DESC`,
+      [userEmail]
+    );
+    
+    res.json({
+      success: true,
+      invitations: invitations.map(inv => ({
+        invitationId: inv.invitation_id,
+        token: inv.invitation_token,
+        organizationId: inv.org_id,
+        organizationName: inv.org_name,
+        organizationPlan: inv.org_plan,
+        inviterName: inv.inviter_name,
+        inviterEmail: inv.inviter_email,
+        inviterAvatar: inv.inviter_avatar,
+        role: inv.role,
+        status: inv.status,
+        message: inv.message,
+        createdAt: inv.created_at,
+        expiresAt: inv.expires_at
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Error getting user invitations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve invitations'
+    });
+  }
+});
+
+// ============================================
+// Static Pages
+// ============================================
+
+/**
+ * GET /accept-invitation/:token
+ * Serve the invitation acceptance page
+ */
+app.get('/accept-invitation/:token', (req, res) => {
+  res.sendFile('accept-invitation.html', { root: './public' });
 });
 
 // ============================================

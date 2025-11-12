@@ -6,33 +6,69 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ---
 
-## 📱 Application Structure
+## 📱 Application Structure (Chat-Centric 3-Panel Layout)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Panlo                                              [⚙️] [📊]│
-├─────────┬────────────────────────────────────────────────────┤
-│         │                                                     │
-│  Watch  │  Chat Area                                         │
-│  Smart  │  ───────────────────────────────────────────────   │
-│         │                                                     │
-│  [+ Add]│  Hi! I'm Panlo, your AI assistant.                │
-│         │  Ask me anything about your files.                │
-│  📁 Org │                                                     │
-│  Public │                                                     │
-│         │                                                     │
-│  📁 You │                                                     │
-│  • test │                                                     │
-│  • docs │                                                     │
-│         │                                                     │
-│  📁 Team│                                                     │
-│  Eng.   │                                                     │
-│         │                                                     │
-│         │  ┌────────────────────────────────────────────┐   │
-│         │  │ Ask anything about your files...      [➤] │   │
-│         │  └────────────────────────────────────────────┘   │
-└─────────┴────────────────────────────────────────────────────┘
+┌──┬──────────────────────┬────────────────────────────────────────────────────┐
+│  │                      │  what are AT's roles?                    [×]  [+] │
+│  │  [+ New Chat]        │  ──────────────────────────────────────────────────│
+│🏢│  ────────────────    │                                                    │
+│  │                      │  Panlo                                            │
+│📁│  try                 │  Based on documents, here are AT's key roles:     │
+│  │  translate to Chinese│                                                    │
+│💬│  new what, what are  │  1. Course Conduct:                               │
+│  │  what are AT's roles?│     • ATs are tasked with conducting courses...   │
+│  │  What are AT's roles?│     • They should not give instructions...        │
+│👤│  ok good             │                                                    │
+│  │  mini that lah       │  2. Preparation and Responsibilities:             │
+│  │  ok lah              │     • Ensure organizers are familiar...           │
+│  │  this is ok          │                                                    │
+│  │  god good lah        │  3. Student Management:                           │
+│  │  are they any padding│     • Conduct checks and provide support...       │
+│  │  now it's 0 pixel    │                                                    │
+│  │  dy asdkfjasdf       │  4. Gender Conduct and Boundaries:                │
+│  │  am i cool           │     • Maintain strict gender segregation...       │
+│  │  Now it should be ok │                                                    │
+│  │  try again           │  5. Personal Practice and Dhamma Service:         │
+│  │  are you sure removed│     • They are encouraged to maintain...          │
+│  │  padding             │                                                    │
+│  │  ok lah              │  [More content...]                                │
+│  │  let's try           │                                                    │
+│  │                      │  Panlo can make mistakes. Please check sources... │
+│  │                      │  [Add Context]                                    │
+│  │                      │  ┌──────────────────────────────────────────────┐│
+│  │                      │  │ Ask anything about your files...        [➤] ││
+│  │                      │  └──────────────────────────────────────────────┘│
+└──┴──────────────────────┴────────────────────────────────────────────────────┘
 ```
+
+**Three-Panel Layout:**
+
+**1. Left Menu (Icon Bar - 50px):**
+- 🏢 Organization selector (top)
+- 📁 Documents/Files view
+- 💬 Chats view (active)
+- 👤 User profile (bottom)
+
+**2. Middle Panel (Chat List - 250px):**
+- [+ New Chat] button at top
+- List of all chat conversations
+- Shows recent chats with preview
+- Click chat → Opens in main window
+- Scrollable list of conversation history
+
+**3. Right Main Window (Flexible width):**
+- **Tabbed interface**: Can open multiple chats or files
+- Shows current chat conversation OR file content
+- **Chat view**:
+  - Chat title with [×] close and [+] new tab
+  - Full conversation history
+  - AI responses with cited sources
+  - [Add Context] button to add files
+  - Input field at bottom: "Ask anything about your files..."
+- **File view** (when opened):
+  - Document content
+  - File actions (Summarize, Download, etc.)
 
 ---
 
@@ -213,348 +249,398 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ### Step 3: Main Application
 
-#### **Screen 5: Main Application Interface** (Three-Panel Layout)
+#### **Screen 5: Main Application Interface** (3-Panel Chat-Centric Layout)
 ```
-┌───────────────────────────────────────────────────────────────────────────────────────┐
-│  Panlo                                                             [⚙️Settings] [📊]   │
-├─────────┬──────────────────────────┬───────────────────────────────────────────────────┤
-│         │                          │                                                    │
-│ Folders │  📄 Files      💬 Chats  │   Detail View                                     │
-│ Files   │                          │                                                    │
-│ Chats   │  Search...    [Filters] │   • Click a file to view content                  │
-│         │                          │   • Click a chat to view history                  │
-│ ┌─────┐│  ┌──────────────────────┐│                                                    │
-│ │+ Add││  │ 📄 Q3-Report.pdf     ││                                                    │
-│ └─────┘│  │ Finance • 2MB        ││                                                    │
-│         │  │ Modified 2h ago      ││                                                    │
-│📁Public │  └──────────────────────┘│                                                    │
-│ • Docs  │  ┌──────────────────────┐│                                                    │
-│ • Legal │  │ 📄 Budget-2024.xlsx  ││   Hi! I'm Panlo, your AI assistant.              │
-│         │  │ Finance • 1.5MB      ││   Ask me anything about your files.              │
-│📁Your   │  │ Modified 1d ago      ││                                                    │
-│ • test  │  └──────────────────────┘│                                                    │
-│ • work  │  ┌──────────────────────┐│                                                    │
-│ • docs  │  │ 💬 Q3 Analysis       ││                                                    │
-│         │  │ 12 messages          ││                                                    │
-│📁Teams  │  │ Last: 30m ago        ││                                                    │
-│ Eng.    │  └──────────────────────┘│                                                    │
-│ • code  │                          │                                                    │
-│ • arch  │  ... more items ...     │                                                    │
-│         │                          │                                                    │
-│ Finance │                          │                                                    │
-│ • Q3    │                          │                                                    │
-│         │                          │  ┌──────────────────────────────────────────────┐│
-│         │                          │  │ Ask anything about your files...        [➤] ││
-│         │                          │  └──────────────────────────────────────────────┘│
-└─────────┴──────────────────────────┴───────────────────────────────────────────────────┘
+┌──┬──────────────────────┬──────────────────────────────────────────────────────┐
+│  │                      │  what are AT's roles?                    [×]  [+]   │
+│  │  [+ New Chat]        │  ────────────────────────────────────────────────────│
+│🏢│  ────────────────    │                                                      │
+│  │                      │  Panlo                                              │
+│📁│  try                 │  Based on the documents, here are the key roles...  │
+│  │                      │                                                      │
+│📊│  translate to Chinese│  1. Course Conduct:                                 │
+│  │                      │     • ATs are tasked with conducting courses while  │
+│💬│  new what, what are  │       preserving the traditional format...          │
+│◄ │  what are AT's roles?│     • They should not give instructions during...   │
+│  │  What are AT's roles?│                                                      │
+│👤│  ok good             │  2. Preparation and Responsibilities:               │
+│  │  mini that lah       │     • Ensure that organizers are familiar with...   │
+│  │  ok lah              │     • Assess the appropriateness of the course...   │
+│  │  this is ok          │                                                      │
+│  │  god good lah        │  3. Student Management:                             │
+│  │  are they any padding│     • Conduct checks and provide support to...      │
+│  │  now it's 0 pixel    │     • Monitor discipline among students...          │
+│  │  dy asdkfjasdf       │                                                      │
+│  │  am i cool           │  4. Gender Conduct and Boundaries:                  │
+│  │  Now it should be ok │     • Maintain strict gender segregation in...      │
+│  │  try again           │     • ATs should regard students similarly...       │
+│  │  are you sure removed│                                                      │
+│  │  padding             │  5. Personal Practice and Dhamma Service:           │
+│  │  ok lah              │     • They are encouraged to maintain personal...   │
+│  │  let's try           │     • ATs must serve selflessly and work towards... │
+│  │                      │                                                      │
+│  │                      │  These roles reflect the commitment of assistant... │
+│  │                      │                                                      │
+│  │                      │  📎 Sources shown in citations                      │
+│  │                      │  Panlo can make mistakes. Check sources...          │
+│  │                      │                                                      │
+│  │                      │  [Add Context]                                      │
+│  │                      │  ┌────────────────────────────────────────────────┐│
+│  │                      │  │ Ask anything about your files...          [➤] ││
+│  │                      │  └────────────────────────────────────────────────┘│
+└──┴──────────────────────┴──────────────────────────────────────────────────────┘
 ```
 
-**Three-Panel Layout:**
+**Three-Panel Layout Details:**
 
-**Left Panel (Navigation):**
-1. **Folders Tab** - Browse watch/smart folders (default view)
-2. **Files Tab** - Browse all indexed files
-3. **Chats Tab** - Browse saved chat conversations
-4. **+ Add Button** - Add new watch folder
+**Panel 1 - Left Menu (Icon Bar - 50px wide):**
+- 🏢 **Organization Icon** (top) - Click to switch orgs
+- 📁 **Documents/Files Icon** - Switch to files view
+- 📊 **Spaces Icon** - Access space selector
+- 💬 **Chats Icon** (active/selected ◄) - Show chat list
+- 👤 **Profile Icon** (bottom) - User profile & settings
 
-**Middle Panel (List View):**
-- **Files Tab**: Shows list of files with metadata
-- **Chats Tab**: Shows list of saved chats
-- Search and filter controls
-- Switches content based on active tab
+**Panel 2 - Middle Chat List (250px wide):**
+- **[+ New Chat] button** at top - Start new conversation
+- **Chat list**: All saved conversations
+  - Shows chat title/first message
+  - Chronological order (newest first)
+  - Click chat → Opens in main window
+  - Currently active chat highlighted
+- **Scrollable**: Can browse all chat history
+- **No tabs here** - just a list
 
-**Right Panel (Detail View):**
-- **Unified detail view** that displays:
-  - File content when a file is selected
-  - Chat history when a chat is selected
-  - AI chat interface when nothing is selected (default)
-
-**Top Right Icons:**
-- ⚙️ Settings
-- 📊 Stats/Activity
+**Panel 3 - Right Main Window (Flexible width):**
+- **Tab bar**: Multiple tabs for chats or files [×] [+]
+  - Each tab shows chat title or filename
+  - [×] to close tab
+  - [+] to open new tab
+- **Content area**: 
+  - **Chat conversation** (shown in example):
+    - Full message history
+    - User messages and AI responses
+    - Source citations inline
+    - Scrollable conversation
+  - **OR File content** (when file opened):
+    - Document viewer
+    - PDF/text/code rendering
+    - File actions at bottom
+- **Bottom section**:
+  - [Add Context] button - Add files to conversation
+  - Input field: "Ask anything about your files..."
+  - [➤] Send button
+- **Disclaimer**: "Panlo can make mistakes. Check sources..."
 
 ---
 
-#### **Screen 5a: Detail View - File Content** (Click a file from middle panel)
+#### **Screen 5a: Files View** (Click 📁 icon in left bar)
 ```
-┌───────────────────────────────────────────────────────────────────────────────────────┐
-│  Panlo                                                             [⚙️Settings] [📊]   │
-├─────────┬──────────────────────────┬───────────────────────────────────────────────────┤
-│         │                          │                                                    │
-│ Folders │  📄 Files      💬 Chats  │   📄 Q3-2024-Financial-Report.pdf                │
-│ Files   │                          │   Finance Team • 2.3 MB • Modified 2h ago         │
-│ Chats   │  Search...    [Filters] │                                                    │
-│         │                          │   [Download] [Share] [Ask AI about this file]     │
-│ ┌─────┐│  ┌──────────────────────┐│   ─────────────────────────────────────────────   │
-│ │+ Add││  │ 📄 Q3-Report.pdf   ◄ ││                                                    │
-│ └─────┘│  │ Finance • 2MB        ││   Q3 2024 Financial Report                        │
-│         │  │ Modified 2h ago      ││   Acme Corporation                                │
-│📁Public │  └──────────────────────┘│                                                    │
-│ • Docs  │  ┌──────────────────────┐│   Executive Summary                               │
-│         │  │ 📄 Budget-2024.xlsx  ││                                                    │
-│📁Your   │  │ Finance • 1.5MB      ││   Our Q3 2024 performance exceeded               │
-│ • test  │  │ Modified 1d ago      ││   expectations with total revenue of $2.4M,      │
-│ • work  │  └──────────────────────┘│   representing a 15% increase over Q2.           │
-│         │  ┌──────────────────────┐│                                                    │
-│📁Teams  │  │ 💬 Q3 Analysis       ││   Revenue Breakdown:                              │
-│ Eng.    │  │ 12 messages          ││   • Product A: $1,200,000 (50%)                   │
-│ Finance │  │ Last: 30m ago        ││   • Product B: $800,000 (33%)                     │
-│ • Q3    │  └──────────────────────┘│   • Services: $400,000 (17%)                      │
-│         │                          │                                                    │
-│         │  ... more files ...     │   Key Highlights:                                 │
-│         │                          │   - Sales growth driven by Product A              │
-│         │                          │   - New client acquisitions: 12                   │
-│         │                          │   - Customer retention: 94%                       │
-│         │                          │                                                    │
-│         │                          │   [Page 1 of 8]                     [Next Page >] │
-│         │                          │                                                    │
-└─────────┴──────────────────────────┴───────────────────────────────────────────────────┘
+┌──┬──────────────────────┬──────────────────────────────────────────────────────┐
+│  │                      │  AT Manual - Course Guidelines.docx      [×]  [+]   │
+│  │  [Marketing Q4 ▾]    │  ────────────────────────────────────────────────────│
+│🏢│  Owner • 24 files    │  [Search in document...]                   [Ask AI] │
+│  │  ────────────────    │  ────────────────────────────────────────────────────│
+│📁│  [Search files...]   │                                                      │
+│◄ │                      │  AT Manual : Course Guidelines                      │
+│📊│  📄 AT Manual        │  For the use of assistant teachers of S.N. Goenka   │
+│  │  📄 Q3-Report.pdf    │                                                      │
+│💬│  📄 Budget-24.xlsx   │  The current format of the 10-day course has been in│
+│  │  📄 Plan-Q4.docx     │  use for the last thirty years and gives excellent  │
+│  │  📄 Strategy.pdf     │  results. Therefore no changes whatsoever should be │
+│👤│  📄 Analysis.xlsx    │  made to it. Suggestions for changes may be freely  │
+│  │  📄 Guidelines.pdf   │  made to Goenkaji but no assistant teacher should   │
+│  │  📄 Notes.txt        │  make any changes on their own.                     │
+│  │                      │                                                      │
+│  │  24 files total      │  Assistant teachers give selfless service conducting│
+│  │                      │  courses as a part of their practice to dissolve... │
+│  │  [+ Upload]          │                                                      │
+│  │  [+ Add File]        │  [More content...]                                  │
+│  │                      │                                                      │
+│  │                      │  [Page 1 of 8]                      [Next Page >]   │
+│  │                      │                                                      │
+│  │                      │  [Summarize] [Add to Context] [Download]            │
+│  │                      │                                                      │
+│  │                      │  ┌────────────────────────────────────────────────┐│
+│  │                      │  │ Ask anything about this file...           [➤] ││
+│  │                      │  └────────────────────────────────────────────────┘│
+└──┴──────────────────────┴──────────────────────────────────────────────────────┘
 ```
 
-**File Detail View Features:**
-- **File header**: Name, folder, size, last modified
-- **Quick actions**: Download, Share, Ask AI about this file
-- **Content display**: Shows file content (text, PDF preview, etc.)
-- **Navigation**: Page controls for multi-page documents
-- **Selected indicator**: ◄ shows which file is active in middle panel
+**Files View Features:**
+- **Toggle view**: Click 📁 icon → Shows files in current space
+- **Space selector**: [Marketing Q4 ▾] - Click to switch spaces
+- **File list**: All files in current space
+  - Searchable
+  - Click file → Opens in main window as tab
+- **File content**: Opens in main window (right panel)
+  - Document viewer with tabs
+  - [Ask AI] button in header
+  - Full content display
+  - Navigation for multi-page docs
+  - Actions: Summarize, Add to Context, Download
+  - Input field to ask questions about file
 
 **API Calls:**
-- `GET /api/orgs/{orgId}/documents/{docId}` - Get file metadata
-- `GET /api/orgs/{orgId}/documents/{docId}/content` - Get file content
+- `GET /api/spaces/{spaceId}/files` - Get files in space
+- `GET /api/orgs/{orgId}/documents/{docId}` - Get file content
+- `POST /api/spaces/{spaceId}/upload` - Upload new file
 
 ---
 
-#### **Screen 5b: Detail View - Chat History** (Click a chat from middle panel)
+#### **Screen 5b: Icon Bar Interactions**
+
+**Organization Selector (🏢 icon):**
 ```
-┌───────────────────────────────────────────────────────────────────────────────────────┐
-│  Panlo                                                             [⚙️Settings] [📊]   │
-├─────────┬──────────────────────────┬───────────────────────────────────────────────────┤
-│         │                          │                                                    │
-│ Folders │  📄 Files      💬 Chats  │   💬 Q3 Revenue Analysis                          │
-│ Files   │                          │   Created: 2 days ago • 12 messages • You + AI    │
-│ Chats   │  Search...    [Filters] │                                                    │
-│         │                          │   [Continue Chat] [Share] [Delete] [···]          │
-│ ┌─────┐│  ┌──────────────────────┐│   ─────────────────────────────────────────────   │
-│ │+ Add││  │ 💬 Budget Review     ││                                                    │
-│ └─────┘│  │ 8 messages           ││   You (2 days ago)                                │
-│         │  │ Last: 1h ago         ││   What are the Q3 revenue numbers?               │
-│📁Public │  └──────────────────────┘│                                                    │
-│ • Docs  │  ┌──────────────────────┐│   ─────────────────────────────────────────────   │
-│         │  │ 💬 Q3 Analysis     ◄ ││                                                    │
-│📁Your   │  │ 12 messages          ││   Panlo (2 days ago)                              │
-│ • test  │  │ Last: 30m ago        ││   Based on the documents in your "Finance"       │
-│ • work  │  └──────────────────────┘│   folder:                                         │
-│         │  ┌──────────────────────┐│                                                    │
-│📁Teams  │  │ 💬 Code Review       ││   Q3 2024 Revenue: $2.4M                          │
-│ Eng.    │  │ 25 messages          ││   • Product A: $1.2M                              │
-│ Finance │  │ Last: 2d ago         ││   • Product B: $800K                              │
-│ • Q3    │  └──────────────────────┘│   • Services: $400K                               │
-│         │                          │                                                    │
-│         │  ... more chats ...     │   📎 Sources:                                      │
-│         │                          │   • Q3-2024-Financial-Report.pdf (p.3)           │
-│         │                          │   • Revenue-Summary-Sept.xlsx                     │
-│         │                          │                                                    │
-│         │                          │   [Add Context]  [Copy]                           │
-│         │                          │                                                    │
-│         │                          │   ─────────────────────────────────────────────   │
-│         │                          │                                                    │
-│         │                          │   You (2 days ago)                                │
-│         │                          │   How does this compare to Q2?                    │
-│         │                          │                                                    │
-│         │                          │   ─────────────────────────────────────────────   │
-│         │                          │                                                    │
-│         │                          │   Panlo (2 days ago)                              │
-│         │                          │   Q3 revenue increased by 15% compared to Q2...   │
-│         │                          │                                                    │
-│         │                          │   ... 8 more messages ...                         │
-│         │                          │                                                    │
-│         │                          │  ┌──────────────────────────────────────────────┐│
-│         │                          │  │ Continue this chat...                   [➤] ││
-│         │                          │  └──────────────────────────────────────────────┘│
-└─────────┴──────────────────────────┴───────────────────────────────────────────────────┘
-```
+Click 🏢 icon → Dropdown appears:
 
-**Chat Detail View Features:**
-- **Chat header**: Title, creation date, message count, participants
-- **Quick actions**: Continue Chat, Share, Delete, More options [···]
-- **Message history**: Full conversation thread with timestamps
-- **Source citations**: Shows which files were referenced
-- **Continue input**: Type to add to existing conversation
-- **Selected indicator**: ◄ shows which chat is active in middle panel
-
-**API Calls:**
-- `GET /api/chats/{chatId}` - Get chat metadata
-- `GET /api/chats/{chatId}/messages` - Get all messages
-- `POST /api/chats/{chatId}/messages` - Continue conversation
-
----
-
-#### **Screen 6: Simplified Chat View** (Alternative: Two-Panel for Focus Mode)
-
-**Note:** The three-panel layout (Screen 5) is the default view. Users can optionally toggle to a simplified two-panel view when they want to focus on chatting without browsing files/chats.
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Panlo                                          [≡ Show Browser] [⚙️] [📊]│
-├──────────┬──────────────────────────────────────────────────────────────┤
-│          │                                                               │
-│  Watch 1 │  You                                                         │
-│  Smart 0 │  What are the Q3 revenue numbers?                           │
-│          │                                                               │
-│ ┌──────┐│  ─────────────────────────────────────────────────────────   │
-│ │+ Add ││                                                               │
-│ └──────┘│  Panlo                                                        │
-│          │  Based on the documents in your "Finance" folder:           │
-│ 📁 Public│                                                               │
-│  • Docs  │  Q3 2024 Revenue: $2.4M                                      │
-│          │  • Product A: $1.2M                                          │
-│ 📁 Your  │  • Product B: $800K                                          │
-│  Folders │  • Services: $400K                                           │
-│  • test  │                                                               │
-│  • work  │  📎 Sources:                                                  │
-│          │  • Q3-2024-Financial-Report.pdf (p.3)                       │
-│ 📁 Teams │  • Revenue-Summary-Sept.xlsx                                 │
-│  Eng.    │                                                               │
-│  • code  │  [Add Context]  [Copy]  [Share]  [Save Chat]                │
-│          │                                                               │
-│  Finance │                                                               │
-│  • Q3    │  ─────────────────────────────────────────────────────────   │
-│          │                                                               │
-│          │  You                                                         │
-│          │  How does this compare to Q2?                               │
-│          │                                                               │
-│          │  Panlo is thinking...                                        │
-│          │                                                               │
-│          │                                                               │
-│          │  ┌────────────────────────────────────────────────────────┐ │
-│          │  │ Ask anything about your files...                  [➤] │ │
-│          │  └────────────────────────────────────────────────────────┘ │
-└──────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**Features:**
-- Clean chat flow focused on conversation
-- Automatic source citations
-- Quick actions: Add Context, Copy, Share, Save Chat
-- Click [≡ Show Browser] to expand to three-panel view
-- Contextual search based on selected folder in left panel
-- Follow-up questions maintain context
-
-**API Call:**
-- `POST /api/orgs/{orgId}/chat`
-- `POST /api/orgs/{orgId}/chats` (when saving)
-
-**Context Options:**
-- Click folder in left panel → Search only that folder
-- "Add Context" button → Add specific files/folders to query
-- Automatically uses user's team permissions for access control
-- "Save Chat" button → Save conversation for later reference
-
----
-
-#### **Screen 7: Add Watch Folder (Simple Modal)**
-```
-┌─────────────────────────────────────────────────┐
-│  Add Watch Folder                      [✕]     │
-├─────────────────────────────────────────────────┤
-│                                                   │
-│  Folder to watch                                 │
-│  ┌───────────────────────────────────────────┐ │
-│  │ /Users/john/Documents/Projects             │ │
-│  │                              [Browse...]  │ │
-│  └───────────────────────────────────────────┘ │
-│                                                   │
-│  Share this folder as                            │
-│  ● Private (Only you can search)                │
-│  ○ Shared (Choose teams below)                  │
-│  ○ Public (Everyone in organization)            │
-│                                                   │
-│  ┌───────────────────────────────────────────┐ │
-│  │ ☑ Watch subfolders                        │ │
-│  │ ☑ Auto-sync changes                       │ │
-│  └───────────────────────────────────────────┘ │
-│                                                   │
-│  [Cancel]                    [Add Folder]       │
-│                                                   │
-└─────────────────────────────────────────────────┘
-
-──── While Indexing ────
-
-┌─────────────────────────────────────────────────┐
-│   
-├─────────────────────────────────────────────────┤
-│                                                   │
-│  📁 Projects                                     │
-│                                                   │
-│  Indexing documents...                           │
-│  ████████░░░░░░░░░░ 150/326 files               │
-│                                                   │
-│  This may take a few minutes.                    │
-│                                                   │
-└─────────────────────────────────────────────────┘
-```
-
-**API Call:** `POST /api/orgs/{orgId}/folders`
-
-**Behavior:**
-- Folder appears immediately in left panel (grayed out)
-- Background indexing begins
-- Progress shown in modal or status bar
-- When complete, folder becomes active
-
----
-
-#### **Screen 8: Folder Context Menu & Sharing**
-
-**Right-click on folder → Context menu:**
-```
 ┌─────────────────────────────┐
-│ • Locat                     │
-│ • Share                     │
-│ • Remove                    │
+│  Your Organizations         │
+├─────────────────────────────┤
+│  ✓ Acme Corp               │
+│    Enterprise • Owner       │
+│                             │
+│  Tech Startup Inc           │
+│    Pro • Member             │
+│                             │
+│  John's Personal Org        │
+│    Free • Owner             │
+├─────────────────────────────┤
+│  + Create Organization      │
 └─────────────────────────────┘
 ```
 
-**Click "Share" → Modal:**
+**Space Selector (Click Space Title at Top):**
+```
+Click "[Marketing Q4 ▾]" at top → Space selector modal appears:
+
+┌─────────────────────────────────────┐
+│  Select Space                  [×] │
+├─────────────────────────────────────┤
+│                                     │
+│  Your Spaces in Acme Corp           │
+│                                     │
+│  📊 My Personal Space               │
+│     Owner • 12 files                │
+│                                     │
+│  📊 Marketing Q4              ✓    │
+│     Owner • 24 files                │
+│                                     │
+│  📊 Engineering Team                │
+│     Contributor • 156 files         │
+│                                     │
+│  📊 Finance Q3                      │
+│     Viewer • 45 files               │
+│                                     │
+│  ─────────────────────────────────  │
+│                                     │
+│  [+ New Space]                      │
+│                                     │
+└─────────────────────────────────────┘
+
+- Click any space to switch to it
+- Click [+ New Space] to create team space
+- Current space marked with ✓
+```
+
+**Space Icon (📊 in left bar):**
+- Visual indicator of current space
+- Changes based on space type (personal vs team)
+- Not clickable - use space title at top for switching
+
+**Profile Menu (👤 icon):**
+```
+Click 👤 icon → Profile menu appears:
+
+┌─────────────────────────────┐
+│  👤 John Doe                │
+│  john@company.com           │
+├─────────────────────────────┤
+│  Profile & Account          │
+│  Spaces & Members           │
+│  Upload & Sync Settings     │
+│  Notifications              │
+├─────────────────────────────┤
+│  Help & Feedback            │
+│  Keyboard Shortcuts         │
+├─────────────────────────────┤
+│  Sign Out                   │
+└─────────────────────────────┘
+```
+
+**Icon States:**
+- **Default**: Gray icon
+- **Active/Selected**: Highlighted with arrow (◄) or colored
+- **Hover**: Shows tooltip with name
+- **Click**: Opens corresponding menu/panel
+
+---
+
+#### **Screen 6: Chat Panel Collapsed View**
+
+**User can collapse the right chat panel for more reading space:**
+
+```
+┌──┬─────────────────────┬──────────────────────────────────────────────────────┐
+│  │                     │  Q3-Report.pdf                            [×][+]  💬│
+│  │  Files in Space     │                                                      │
+│🏢│  ──────────────     │  Search...                           [Ask AI]       │
+│  │                     │  ────────────────────────────────────────────────────│
+│📊│  [Search files...]  │                                                      │
+│◄ │                     │  Q3 2024 Financial Report                           │
+│  │  📄 Q3-Report.pdf ◄ │  Acme Corporation                                   │
+│💬│  📄 Budget-24.xlsx  │                                                      │
+│  │  📄 Plan-Q4.docx    │  Executive Summary                                  │
+│  │  📄 Strategy.pdf    │                                                      │
+│  │  📄 Analysis.xlsx   │  Our Q3 2024 performance exceeded expectations with │
+│👤│  📄 Notes.txt       │  total revenue of $2.4M, representing a 15%         │
+│  │                     │  increase over Q2.                                   │
+│  │  24 files total     │                                                      │
+│  │                     │  Revenue Breakdown:                                 │
+│  │  [+ Upload File]    │  • Product A: $1,200,000 (50%)                      │
+│  │  [+ Add Existing]   │  • Product B: $800,000 (33%)                        │
+│  │                     │  • Services: $400,000 (17%)                         │
+│  │                     │                                                      │
+│  │                     │  Key Highlights:                                    │
+│  │                     │  - Sales growth driven by Product A launch          │
+│  │                     │  - New client acquisitions: 12 enterprise clients   │
+│  │                     │  - Customer retention rate: 94%                     │
+│  │                     │  - Operating margin improved to 28%                 │
+│  │                     │                                                      │
+│  │                     │  Market Analysis:                                   │
+│  │                     │  The Q3 results reflect strong market position...   │
+│  │                     │                                                      │
+│  │                     │  [Page 1 of 8]                      [Next Page >]   │
+│  │                     │  [Summarize] [Add to Context] [Download]            │
+└──┴─────────────────────┴──────────────────────────────────────────────────────┘
+```
+
+**Collapsed Chat Panel Features:**
+- Click [×] on chat panel header → Collapses to edge
+- 💬 icon appears in top-right corner of content area
+- Click 💬 icon → Re-opens chat panel
+- Provides more space for reading documents
+- Chat history preserved when panel reopens
+- "Ask AI" button still available in document header
+
+---
+
+#### **Screen 7: Create New Space (Simple Modal)**
 ```
 ┌─────────────────────────────────────────────────┐
-│  Share "Finance" Folder            [✕]         │
+│  Create New Space                      [✕]     │
 ├─────────────────────────────────────────────────┤
 │                                                   │
-│  Visibility                                      │
+│  Space name *                                    │
 │  ┌───────────────────────────────────────────┐ │
-│  │ ○ Private (Only you)                      │ │
-│  │ ● Shared with teams (Choose below)       │ │
-│  │ ○ Public (Everyone in organization)      │ │
+│  │ Marketing Q4                               │ │
 │  └───────────────────────────────────────────┘ │
 │                                                   │
-│  Share with teams                                │
+│  Description (optional)                          │
 │  ┌───────────────────────────────────────────┐ │
-│  │  ☐ Engineering                            │ │
-│  │  ☑ Finance Team                          │ │
-│  │  ☑ Leadership                            │ │
-│  │  ☐ HR                                    │ │
+│  │ Q4 marketing campaign materials            │ │
+│  │                                            │ │
 │  └───────────────────────────────────────────┘ │
 │                                                   │
-│  Currently shared with: Finance Team, Leadership │
+│  Space type                                      │
+│  ● Team Space (collaborate with members)        │
+│  ○ Personal Space (only you have access)        │
 │                                                   │
-│  [Cancel]                    [Save]             │
+│  [Cancel]                   [Create Space]      │
+│                                                   │
+└─────────────────────────────────────────────────┘
+
+──── After Creation ────
+
+┌─────────────────────────────────────────────────┐
+│  Space Created Successfully!           [✕]     │
+├─────────────────────────────────────────────────┤
+│                                                   │
+│  📊 Marketing Q4                                 │
+│                                                   │
+│  Your new space is ready to use!                │
+│                                                   │
+│  Next steps:                                     │
+│  • Add members to collaborate                   │
+│  • Upload files or add existing files           │
+│  • Start chatting with AI                       │
+│                                                   │
+│  [Add Members]              [Add Files]         │
 │                                                   │
 └─────────────────────────────────────────────────┘
 ```
 
-**Visibility Options:**
-- **Private**: Only you can access this folder
-- **Shared with teams**: Select specific teams to share with
-- **Public**: Everyone in your organization can access
+**API Call:** `POST /api/orgs/{orgId}/spaces`
 
 **Behavior:**
-- When "Shared with teams" is selected, team checkboxes are enabled
-- When "Private" or "Public" is selected, team checkboxes are disabled/grayed out
-- Changing from "Shared" to "Public" makes folder visible to entire organization
-- Changing to "Private" removes all team access
+- Personal space automatically created on signup
+- User can create team spaces
+- Space appears immediately in left panel
+- User becomes the owner of the space
+- Can add members and files after creation
 
-**API Call:** `POST /api/folders/{folderId}/share`
+---
+
+#### **Screen 8: Space Context Menu & Add Members**
+
+**Right-click on space → Context menu:**
+```
+┌─────────────────────────────┐
+│ • View Details              │
+│ • Add Members               │
+│ • Add Files                 │
+│ • Leave Space               │
+│ • Delete Space (owner only) │
+└─────────────────────────────┘
+```
+
+**Click "Add Members" → Modal:**
+```
+┌─────────────────────────────────────────────────┐
+│  Add Members to "Finance Q3"       [✕]         │
+├─────────────────────────────────────────────────┤
+│                                                   │
+│  Search organization members                     │
+│  ┌───────────────────────────────────────────┐ │
+│  │ Type name or email...                  🔍 │ │
+│  └───────────────────────────────────────────┘ │
+│                                                   │
+│  ┌───────────────────────────────────────────┐ │
+│  │  👤 John Smith                            │ │
+│  │     john.smith@company.com                │ │
+│  │     Role: [Contributor ▾]  [Add]         │ │
+│  │                                            │ │
+│  │  👤 Sarah Johnson                         │ │
+│  │     sarah@company.com                     │ │
+│  │     Role: [Viewer ▾]       [Add]         │ │
+│  │                                            │ │
+│  │  👤 Mike Chen                             │ │
+│  │     mike.chen@company.com                 │ │
+│  │     Role: [Owner ▾]        [Add]         │ │
+│  └───────────────────────────────────────────┘ │
+│                                                   │
+│  Role permissions:                               │
+│  • Owner: Full control (add/remove members)     │
+│  • Contributor: Add files, own uploads          │
+│  • Viewer: Read-only access                     │
+│                                                   │
+│  [Cancel]                             [Done]    │
+│                                                   │
+└─────────────────────────────────────────────────┘
+```
+
+**Role Options:**
+- **Owner**: Full control, can add/remove members, manage space
+- **Contributor**: Can add files and remove own files
+- **Viewer**: Read-only access to files and chats
+
+**Behavior:**
+- Search shows organization members not yet in space
+- Select role for each member before adding
+- Members receive notification when added
+- Only owners can add/remove members
+- Personal spaces have only one member (the owner)
+
+**API Call:** `POST /api/spaces/{spaceId}/members`
 
 ---
 
@@ -566,13 +652,13 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 │                                                   │
 │  👤 John Doe                                     │
 │  john@company.com                                │
-│  Acme Corp                                       │
+│  Acme Corp • Finance Q3 Space                   │
 │                                                   │
 │  ──────────────────────────────────────────────  │
 │                                                   │
 │  • Profile & Account                            │
-│  • Teams & Members                              │
-│  • Watch Folders Settings                       │
+│  • Spaces & Members                             │
+│  • Upload & Sync Settings                       │
 │  • Notifications                                │
 │  ──────────────────────────────────────────────  │
 │  • Switch Organization...                       │
@@ -586,6 +672,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 **Quick Settings:**
 - Click items to go to detail screens
+- "Spaces & Members" → Manage spaces and view members
 - "Switch Organization" → Go back to org selector
 - "Sign Out" → Return to login
 
@@ -608,20 +695,21 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 │                                                   │
 │  Notify me when...                               │
 │                                                   │
-│  📁 Folder Events                                │
+│  📊 Space Events                                 │
 │  ┌───────────────────────────────────────────┐ │
-│  │ ☑ Folder indexing completes               │ │
-│  │ ☑ New files detected in watch folder      │ │
-│  │ ☑ Folder shared with me                   │ │
-│  │ ☐ Indexing errors occur                   │ │
+│  │ ☑ Added to a space                        │ │
+│  │ ☑ New files added to space                │ │
+│  │ ☑ Member joins/leaves space               │ │
+│  │ ☑ Space permissions change                │ │
+│  │ ☐ Upload errors occur                     │ │
 │  └───────────────────────────────────────────┘ │
 │                                                   │
 │  👥 Team & Collaboration                         │
 │  ┌───────────────────────────────────────────┐ │
-│  │ ☑ Someone shares a folder with my team    │ │
+│  │ ☑ Someone shares files in space           │ │
 │  │ ☑ Added to a new team                     │ │
-│  │ ☑ Team member joins/leaves                │ │
-│  │ ☐ Team folder permissions change          │ │
+│  │ ☑ Team member mentions you                │ │
+│  │ ☐ Space activity digest (daily)           │ │
 │  └───────────────────────────────────────────┘ │
 │                                                   │
 │  💬 Chat & AI Assistant                          │
@@ -1075,38 +1163,207 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ## 🔄 Key User Workflows
 
-### Workflow 1: Complete Onboarding
+### Workflow 1: Complete Onboarding (First-Time User)
 ```
 1. Open Panlo app
 2. Sign in (Google or Email/Password)
 3. Choose organization (or create new)
-4. Main app loads with empty state
-5. Click "+ Add" to watch first folder
-6. Select folder → Choose visibility (Private/Shared/Public)
-7. Folder begins indexing in background
-8. Start chatting once ready!
+4. ✅ Personal space automatically created
+5. Main app loads with Chat view (💬 icon active):
+   - Left: Icon bar (🏢 org, 📁 files, 📊 space, 💬 chat, 👤 profile)
+   - Middle: Chat list with [+ New Chat] button (empty initially)
+   - Right: Welcome screen or empty state
+     "Welcome to Panlo!
+      Start a new chat or upload files to your space."
+6. No previous chats yet - clean slate
+7. User can:
+   - Click [+ New Chat] to start chatting
+   - Click 📁 icon to view/upload files
+   - Click 📊 icon to view space (Personal Space only initially)
 ```
 
-### Workflow 2: Quick Search/Chat
+**Default State:**
+- Chat view is default (💬 icon active)
+- Personal space active by default
+- No team spaces until user creates or joins one
+- Empty chat list for new users
+
+### Workflow 2: Start New Chat and Ask Questions
 ```
-1. Type question in chat input
-2. (Optional) Click folder in left panel to filter context
-3. Press Enter or click ➤
-4. AI processes with ACL filters automatically
-5. Answer displayed with source citations
-6. Ask follow-up questions in same chat
+1. Click [+ New Chat] in middle panel
+2. New chat tab opens in main window (right panel)
+3. Input field ready: "Ask anything about your files..."
+4. Type question (e.g., "What are AT's roles?")
+5. Press [➤] or Enter to send
+6. AI searches files in current space (Personal Space)
+7. Response appears with:
+   - Detailed answer
+   - Source citations from documents
+   - Document references with IDs
+8. Chat auto-saved to chat list (middle panel)
+9. Chat title generated from first message
+10. Can continue asking follow-up questions
+11. Each response cites sources from space
 ```
 
-### Workflow 3: Share Folder with Team
+### Workflow 3: Switch Spaces or Create New Space
 ```
-1. Right-click folder in left panel
-2. Select "Share with teams..."
-3. Check team boxes (Engineering, Finance, etc.)
-4. Click "Save"
-5. ✅ Immediate access granted to team
-6. 🔄 Vector metadata updates in background
-7. Team members can now search that folder
+1. Click 📊 Spaces icon in left icon bar (OR)
+   Click space selector in Files view: "[Marketing Q4 ▾]"
+2. Space selector modal appears showing:
+   
+   ┌─────────────────────────────────────┐
+   │  Select Space                  [×] │
+   ├─────────────────────────────────────┤
+   │                                     │
+   │  Your Spaces in Acme Corp           │
+   │                                     │
+   │  📊 My Personal Space         ✓    │
+   │     Owner • 12 files                │
+   │                                     │
+   │  📊 Marketing Q4                    │
+   │     Owner • 24 files                │
+   │                                     │
+   │  📊 Engineering Team                │
+   │     Contributor • 156 files         │
+   │                                     │
+   │  ─────────────────────────────────  │
+   │                                     │
+   │  [+ New Space]                      │
+   │                                     │
+   └─────────────────────────────────────┘
+
+3. User can:
+   - Click on any space to switch to it, OR
+   - Click [+ New Space] to create a new team space
+
+4. If [+ New Space] clicked → Create Space modal appears:
+   
+   ┌─────────────────────────────────────┐
+   │  Create New Space             [×]  │
+   ├─────────────────────────────────────┤
+   │                                     │
+   │  Space Name *                       │
+   │  ┌─────────────────────────────┐   │
+   │  │ Marketing Q4                 │   │
+   │  └─────────────────────────────┘   │
+   │                                     │
+   │  Description (optional)             │
+   │  ┌─────────────────────────────┐   │
+   │  │ Q4 marketing campaign        │   │
+   │  │ materials and planning       │   │
+   │  └─────────────────────────────┘   │
+   │                                     │
+   │  This will be a Team Space          │
+   │  (You can add members after)        │
+   │                                     │
+   │  [Cancel]         [Create Space]   │
+   │                                     │
+   └─────────────────────────────────────┘
+
+5. Enter space name and optional description
+6. Click [Create Space]
+7. ✅ Team space created and becomes active
+8. Space title updates to "Marketing Q4"
+9. Files panel empty with [+ Upload File] button
+10. Success notification: "Marketing Q4 space created!"
+11. Optionally, add members via space menu or later
 ```
+
+**Note:** 
+- Personal space is auto-created on signup
+- Only team spaces can be created manually
+- New spaces start empty
+
+---
+
+### Workflow 3a: Add Files to Space
+```
+1. Ensure you're in the desired space (check 📊 icon is highlighted)
+2. Click [+ Upload File] button at bottom of middle-left panel
+
+   Option A: Upload New File
+   ├─ Click [+ Upload File]
+   ├─ File picker opens
+   ├─ Select one or more files from computer
+   ├─ Files upload with progress indicator
+   └─ Files indexed and added to space
+
+   Option B: Add Existing Files
+   ├─ Click [+ Add Existing]
+   ├─ Modal shows all files in organization
+   ├─ Search bar at top
+   ├─ Select files with checkboxes
+   ├─ Click [Add to Space]
+   └─ Files linked to this space
+
+3. ✅ Files added to current space
+4. Files appear in middle-left file list
+5. Can click file to view in content area
+6. Activity logged: "{Your Name} added 3 files"
+7. Mini chat panel ready to answer questions about new files
+```
+
+**Permissions:**
+- Owners and Contributors can add/upload files
+- Viewers can only view files
+- Contributors can remove only files they added
+- Owners can remove any file from space
+
+---
+
+### Workflow 3b: Remove File from Space
+```
+1. View files in current space (middle-left panel)
+2. Click file to open in content area
+3. Scroll to bottom of document
+4. Click [Remove from Space] button
+5. Confirmation dialog appears:
+   "Remove from space?"
+   "This won't delete the file, just remove it from this space"
+   [Cancel] [Remove from Space]
+6. Click [Remove from Space] to confirm
+7. ✅ File removed from file list
+8. File still exists in organization database
+9. File may still be available in other spaces
+10. If it was the last space, file remains in org documents
+```
+
+**Permissions:**
+- Contributors can remove only files they added
+- Owners can remove any file from space
+- Viewers cannot remove files
+
+---
+
+### Workflow 3c: Quick Space Switching
+```
+1. Currently in "Marketing Q4" space
+2. Click on space title "Marketing Q4" at top of interface
+3. Space selector modal appears (see Workflow 3 for full modal)
+4. Click on different space (e.g., "Engineering Team")
+5. ✅ Space switches instantly
+6. Modal closes automatically
+7. Interface updates:
+   - Space title changes to "Engineering Team"
+   - Middle-left panel → Shows files in Engineering space
+   - Middle-right panel → Clears current document
+   - Mini chat panel → Context switches to Engineering
+   - Chat history cleared (fresh context)
+8. AI queries now scoped to Engineering space files
+9. All document tabs close (clean slate for new space)
+10. File count updates in space title area
+```
+
+**Instant Context Switching:**
+- File list refreshes immediately
+- Chat context auto-scoped to new space
+- No page refresh needed
+- Separate chat history per space
+- Can switch between spaces anytime
+- Previous space state preserved (can switch back)
+
+---
 
 ### Workflow 4: Create Team & Add Members
 ```
@@ -1145,7 +1402,198 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 9. New members can now access team's shared folders
 ```
 
-### Workflow 7: Browse and View File Content
+### Workflow 7: Invite New Member to Organization (Admin Only)
+```
+1. Click ⚙️ Settings → "Teams & Members"
+2. Click [+ Invite Member]
+3. Modal opens:
+   ┌─────────────────────────────────────────┐
+   │        Invite Member to Organization     │
+   │                                          │
+   │  Email address *                         │
+   │  ┌──────────────────────────────────┐  │
+   │  │ newuser@example.com               │  │
+   │  └──────────────────────────────────┘  │
+   │                                          │
+   │  Role *                                  │
+   │  ( ) Admin   (•) Member                 │
+   │                                          │
+   │  Personal message (optional)             │
+   │  ┌──────────────────────────────────┐  │
+   │  │ Welcome to our team! Looking     │  │
+   │  │ forward to working with you.     │  │
+   │  └──────────────────────────────────┘  │
+   │                                          │
+   │        [Cancel]    [Send Invitation]    │
+   └─────────────────────────────────────────┘
+4. Enter email address
+5. Select role (Admin or Member)
+6. (Optional) Add personal message
+7. Click [Send Invitation]
+8. ✅ Success toast: "Invitation sent to newuser@example.com"
+9. Invitation appears in "Pending Invitations" tab
+10. Invitee receives email with invitation link
+```
+
+**API Call:** `POST /api/organizations/:orgId/invitations`
+
+**What happens on backend:**
+- Secure invitation token generated (64 chars)
+- Invitation stored in database with 7-day expiration
+- Email sent with branded invitation link
+- Activity logged for audit
+
+**Rate Limits:**
+- 10 invitations per hour per organization
+- 3 invitations per email per day
+
+### Workflow 8: Accept Organization Invitation (Invitee)
+```
+1. Invitee receives email: "You're invited to join [Org Name] on Panlo"
+2. Click [Accept Invitation] button in email
+3. Opens Panlo app or web
+   
+   If NOT logged in:
+   4a. Shows invitation details first:
+       ┌─────────────────────────────────────────┐
+       │  You're invited to join Acme Corp       │
+       │                                          │
+       │  👤 Invited by: John Doe                │
+       │  🎭 Role: Member                        │
+       │  💬 "Welcome to our team!"              │
+       │                                          │
+       │  ⏰ Expires in 6 days                   │
+       │                                          │
+       │        [Sign In to Accept]              │
+       │        [Decline]                        │
+       └─────────────────────────────────────────┘
+   5a. Click [Sign In to Accept]
+   6a. Login or create account
+   7a. Automatically redirected back to accept invitation
+   
+   If ALREADY logged in:
+   4b. Shows confirmation screen:
+       ┌─────────────────────────────────────────┐
+       │  Join Acme Corp?                        │
+       │                                          │
+       │  👤 Invited by: John Doe                │
+       │  🎭 Role: Member                        │
+       │  💬 "Welcome to our team!"              │
+       │                                          │
+       │  ✓ You'll get access to:                │
+       │    • Shared team folders                │
+       │    • Organization documents             │
+       │    • Team chat history                  │
+       │                                          │
+       │  Accept as: newuser@example.com         │
+       │                                          │
+       │        [Decline]    [Accept & Join]     │
+       └─────────────────────────────────────────┘
+   5b. Click [Accept & Join]
+
+8. ✅ Success! Redirected to organization dashboard
+9. Toast: "Welcome to Acme Corp!"
+10. Organization appears in org selector
+11. Can now access shared folders and resources
+```
+
+**API Calls:**
+- `GET /api/invitations/:token` - Get invitation details
+- `POST /api/invitations/:token/accept` - Accept invitation
+
+**Email Verification:**
+- System validates logged-in user's email matches invitation email
+- If mismatch: Shows error "This invitation was sent to a different email"
+
+### Workflow 9: View Pending Invitations (Admin)
+```
+1. Click ⚙️ Settings → "Teams & Members"
+2. Click "Pending Invitations" tab
+3. Shows list of pending invitations:
+   ┌─────────────────────────────────────────────────────────┐
+   │  Pending Invitations (5)                  [+ Invite]    │
+   │                                                           │
+   │  📧 newuser@example.com                           [···]  │
+   │     Member • Invited 2 days ago • Expires in 5 days     │
+   │     Invited by: John Doe                                │
+   │                                                           │
+   │  📧 jane.smith@company.com                        [···]  │
+   │     Admin • Invited 1 day ago • Expires in 6 days       │
+   │     Invited by: You                                      │
+   │                                                           │
+   │  📧 bob@startup.com                               [···]  │
+   │     Member • Invited 6 days ago • Expires in 1 day      │
+   │     Invited by: Sarah Lee                               │
+   │     ⚠️ Expires soon!                                    │
+   └─────────────────────────────────────────────────────────┘
+
+4. Click [···] on any invitation for actions:
+   • Resend Email (if implemented)
+   • Copy Link
+   • Revoke Invitation
+
+5. Click "Revoke Invitation"
+6. Confirmation dialog:
+   "Are you sure you want to revoke this invitation?
+    The invitation link will no longer work."
+7. Click [Revoke]
+8. ✅ Invitation removed from list
+9. Toast: "Invitation to newuser@example.com revoked"
+```
+
+**API Calls:**
+- `GET /api/organizations/:orgId/invitations?status=pending` - List invitations
+- `DELETE /api/invitations/:invitationId` - Revoke invitation
+
+**Tabs Available:**
+- Pending (default)
+- Accepted
+- Declined
+- Expired
+- Revoked
+
+### Workflow 10: Check My Invitations (Invitee)
+```
+1. User logs into Panlo
+2. If user has pending invitations:
+   ┌────────────────────────────────────────┐
+   │  🔔 You have 2 pending invitations     │
+   │                                         │
+   │  View Invitations  [×]                 │
+   └────────────────────────────────────────┘
+   
+3. Click [View Invitations]
+4. Shows modal with all pending invitations:
+   ┌─────────────────────────────────────────┐
+   │  Your Invitations (2)                    │
+   │                                          │
+   │  🏢 Acme Corp                           │
+   │     Member • Invited by John Doe        │
+   │     "Welcome to our team!"              │
+   │     Expires in 5 days                   │
+   │     [Accept]  [Decline]                 │
+   │                                          │
+   │  🏢 Tech Startup Inc                    │
+   │     Admin • Invited by Jane Smith       │
+   │     "Join our engineering team!"        │
+   │     Expires in 3 days                   │
+   │     [Accept]  [Decline]                 │
+   │                                          │
+   │                              [Close]     │
+   └─────────────────────────────────────────┘
+
+5. Click [Accept] on desired invitation
+6. See Workflow 8 (Accept Invitation) for full flow
+```
+
+**API Call:** `GET /api/users/me/invitations`
+
+**Notification Badge:**
+- Red badge on ⚙️ Settings icon if pending invitations
+- Shows count (e.g., "2")
+- Clears when all invitations processed
+
+### Workflow 11: Browse and View File Content
 ```
 1. Click "Files" tab in left panel
 2. Middle panel shows list of all indexed files
@@ -1160,7 +1608,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 8. Click another file to view different content
 ```
 
-### Workflow 8: View and Continue Chat History
+### Workflow 12: View and Continue Chat History
 ```
 1. Click "Chats" tab in left panel
 2. Middle panel shows list of all saved chats
@@ -1174,7 +1622,7 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 10. Chat auto-saves with updated content
 ```
 
-### Workflow 9: Save Current Chat for Later
+### Workflow 13: Save Current Chat for Later
 ```
 1. Start new chat in main interface
 2. Ask questions and get AI responses
@@ -1188,56 +1636,130 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ### Workflow 10: Switch Organization
 ```
-1. Click ⚙️ Settings
-2. Select "Switch Organization..."
-3. Choose different org from list
-4. App reloads with new org's folders
-5. Continue working in new org context
+1. Click 🏢 Organization icon in left icon bar (top)
+2. Dropdown menu appears showing available organizations:
+
+   ┌─────────────────────────────┐
+   │  Your Organizations         │
+   ├─────────────────────────────┤
+   │  ✓ Acme Corp               │
+   │    Enterprise • Owner       │
+   │                             │
+   │  Tech Startup Inc           │
+   │    Pro • Member             │
+   │                             │
+   │  John's Personal Org        │
+   │    Free • Owner             │
+   ├─────────────────────────────┤
+   │  + Create Organization      │
+   └─────────────────────────────┘
+
+3. Click on different organization (e.g., "Tech Startup Inc")
+4. API call: PUT /api/users/me
+   - Body: { "currentOrgId": "org_startup_123" }
+   - Updates user's current_org_id
+5. ✅ App switches to new organization
+   - Spaces list updates (shows spaces in new org)
+   - Personal space for this org loaded
+   - Files panel clears/resets
+   - Chat history scoped to new org
+6. 🏢 icon updates to show current org
+7. User continues working in new organization context
 ```
+
+**API Requirements:**
+- **Endpoint:** `PUT /api/users/me`
+- **Purpose:** Update user's current organization
+- **Request Body:**
+  ```json
+  {
+    "currentOrgId": "org_startup_123"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "currentOrgId": "org_startup_123",
+    "organizationName": "Tech Startup Inc",
+    "namespace": "techstartup",
+    "plan": "pro",
+    "role": "member"
+  }
+  ```
+
+**Frontend State Management:**
+- Organization switcher accessible via 🏢 icon
+- Hover shows current org name
+- Click shows dropdown with all orgs
+- Selection triggers org switch and UI refresh
+- All panels update with new org context
 
 ---
 
-## 🎨 Design Principles (Enhanced Three-Panel Layout)
+## 🎨 Design Principles (3-Panel Chat-Centric Layout)
 
-### 1. **Unified Interface**
-- Three-panel layout for maximum flexibility
-- Left panel: Navigation (Folders, Files, Chats)
-- Middle panel: List/Browse view
-- Right panel: Detail view (Files or Chats)
-- Minimal top bar (just Settings & Stats icons)
+### 1. **Icon-Driven Navigation**
+- **Left icon bar** (50px) for primary navigation
+- 5 core icons: Organization, Files, Spaces, Chats, Profile
+- Hover shows tooltip with labels
+- Click switches views (Files vs Chats)
+- Minimal, unobtrusive design
+- Always visible for quick access
 
-### 2. **Flexible Detail View**
-- **Consolidated display** for files and chats
-- Click file → View content
-- Click chat → View history
-- No selection → AI chat interface (default)
-- Seamless switching between content types
+### 2. **Three-Panel Workspace**
+- **Panel 1** (Icon Bar, 50px): View switcher & navigation
+- **Panel 2** (List, 250px): Chat list OR file list
+- **Panel 3** (Main Window, Flexible): Tabbed content area
+- Optimized for conversation with documents
+- Clean, focused interface
 
-### 3. **Context in Sidebar**
-- All folders visible at glance
-- Organized by access level (Public / Your / Teams)
-- Right-click for actions (no complex menus)
-- Tabs for Folders, Files, and Chats
+### 3. **Chat-First Experience**
+- **Chat view is default** on app load
+- Conversation-centric design like ChatGPT/Claude
+- [+ New Chat] always accessible at top
+- Chat list in middle panel shows all conversations
+- Input field always visible at bottom of main window
+- Every chat auto-saved and accessible
 
-### 4. **Chat-Centric Yet Flexible**
-- Primary interaction is conversational
-- Sources embedded in responses
-- Context automatically managed
-- Easy access to file browsing and chat history
-- Optional simplified two-panel focus mode
+### 4. **Dual View Modes**
+- **Chats mode** (💬 icon): Browse conversations
+  - Middle panel shows chat list
+  - Click chat → Opens in main window
+  - Multiple chats can be open in tabs
+- **Files mode** (📁 icon): Browse documents
+  - Middle panel shows file list
+  - Click file → Opens in main window
+  - Multiple files can be open in tabs
+- Toggle between modes with left icon bar
 
-### 5. **Modal Dialogs for Actions**
-- Add folder → Modal
-- Settings → Modal
-- Share folder → Modal
-- Save chat → Modal (title + metadata)
-- Keep main view uncluttered
+### 5. **Space-Scoped Context**
+- All chats and files scoped to current space
+- Switch spaces via 📊 icon or space selector
+- Personal space auto-created on signup
+- Team spaces for collaboration
+- AI responses use files from active space only
 
-### 6. **Background Operations**
-- Indexing happens in background
-- Non-blocking UI
-- Progress indicators when needed
-- Folders usable as soon as added
+### 6. **Tabbed Main Window**
+- Open multiple chats or files simultaneously
+- [×] to close tabs
+- [+] to open new tab
+- Switch between content easily
+- Clean, organized multitasking
+
+### 7. **Inline Document Actions**
+- [Add Context] button in chat to include files
+- [Summarize] button in file view
+- [Ask AI] button in file headers
+- Actions appear contextually
+- No separate panels needed
+
+### 8. **Automatic Source Citations**
+- Every AI response shows sources
+- Document IDs and references inline
+- "Panlo can make mistakes" disclaimer
+- Transparency in AI answers
+- Easy to verify information
 
 ---
 
@@ -1245,14 +1767,21 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 | Feature | Location | Action |
 |---------|----------|--------|
-| **Chat with AI** | Main area | Type & send messages |
-| **Add Folder** | Left panel: "+ Add" button | Browse & select folder |
-| **Filter Context** | Left panel: Click folder | Search only that folder |
-| **Share Folder** | Left panel: Right-click folder | Share with teams |
-| **Create Team** | Settings → Teams & Members | Create & add members |
-| **Switch Org** | Settings → Switch Organization | Change active org |
-| **View Stats** | Top right: 📊 icon | Usage & activity |
-| **Settings** | Top right: ⚙️ icon | Profile, teams, account |
+| **Start New Chat** | Middle panel: "[+ New Chat]" button | Begin new AI conversation |
+| **Chat with AI** | Main window: input field at bottom | Type question & press [➤] |
+| **View Chat History** | 💬 icon (left bar) → Middle panel | Browse all saved conversations |
+| **View Files** | 📁 icon (left bar) → Middle panel | Browse documents in space |
+| **Read Documents** | Click file → Opens in main window tab | Full document viewer |
+| **Switch Organization** | 🏢 icon (top of left bar) | Change active organization |
+| **Switch/Select Space** | 📊 icon (left bar) OR space selector | Opens modal to switch spaces |
+| **Create Team Space** | 📊 icon → Modal → "[+ New Space]" | Create new team space |
+| **Upload File** | Files view: "[+ Upload]" button | Upload new document to space |
+| **Add Existing File** | Files view: "[+ Add File]" button | Add org file to space |
+| **Add File to Chat** | Chat view: "[Add Context]" button | Include specific files in conversation |
+| **Summarize Doc** | File view: "[Summarize]" button | AI summary of current file |
+| **Ask About File** | File view: input at bottom | Ask questions about open document |
+| **Multiple Tabs** | Main window: [×] [+] buttons | Open multiple chats/files |
+| **Settings** | 👤 icon (bottom of left bar) | Profile, spaces, account |
 
 ---
 
@@ -1260,26 +1789,27 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 
 ### Status Messages
 - Toast notifications for quick feedback
-  - ✅ "Folder added successfully"
-  - ✅ "Shared with Engineering team"
+  - ✅ "Space created successfully"
+  - ✅ "3 files added to space"
+  - ✅ "Member added to Marketing Q4"
   - ⚠️ "Indexing in progress..."
-  - ❌ "Failed to connect - check network"
+  - ❌ "Failed to add file - check permissions"
 
 ### Progress Indicators
 - Modal with progress bar during indexing
-- "Installing Components..." loading state
-- Grayed-out folders while indexing
-- Badge counts on Watch/Smart tabs
+- "Indexing files..." loading state
+- Badge counts on Files/Chats tabs
+- Space member counts update in real-time
 
 ### Notification Display Examples
 
 #### **Toast Notification (Bottom Right)**
 ```
 ┌─────────────────────────────────────────┐
-│  ✅ Folder Indexed Successfully          │
+│  ✅ Space Created Successfully           │
 │                                          │
-│  "Finance Q3" is ready to search.       │
-│  150 files processed.                   │
+│  "Marketing Q4" is ready to use.        │
+│  Add files to start collaborating.      │
 │                                  [✕]    │
 └─────────────────────────────────────────┘
 ```
@@ -1287,10 +1817,10 @@ Simplified user journey for Panlo Enterprise, matching the current app architect
 #### **Progress Toast (Persistent)**
 ```
 ┌─────────────────────────────────────────┐
-│  ⏳ Indexing in Progress                 │
+│  ⏳ Adding Files to Space                │
 │                                          │
-│  Finance Q3                              │
-│  ████████░░░░░░░░ 150/326 files         │
+│  Marketing Q4                            │
+│  ████████░░░░░░░░ 12/25 files          │
 │                            [View Details]│
 └─────────────────────────────────────────┘
 ```
@@ -1594,6 +2124,12 @@ Toggle Sidebar                  ⌘B
 - Role-based access control
 - Background indexing
 - Real-time collaboration
+- **Organization Invitations** (NEW)
+  - Secure token-based email invitations
+  - Admin can invite members with specific roles
+  - Automatic expiration (7 days)
+  - Rate limiting and abuse prevention
+  - Complete audit trail
 
 **✅ Settings & Preferences:**
 - Detailed Notifications Settings screen

@@ -84,44 +84,45 @@ const config = {
       maxVectors: 10000,
       maxTeams: 0,
       maxMembers: 1,
-      maxFolders: 3,
-      features: ['basic_search', 'personal_folders'],
+      maxSpaces: 5,          // Personal spaces only
+      features: ['basic_search', 'personal_spaces'],
     },
     pro: {
       maxVectors: 100000,
       maxTeams: 5,
       maxMembers: 10,
-      maxFolders: 50,
-      features: ['basic_search', 'team_sharing', 'advanced_filters', 'priority_support'],
+      maxSpaces: 100,        // Personal + team spaces
+      features: ['basic_search', 'team_spaces', 'space_collaboration', 'advanced_filters', 'priority_support'],
     },
     enterprise: {
       maxVectors: -1, // unlimited
       maxTeams: -1,
       maxMembers: -1,
-      maxFolders: -1,
-      features: ['basic_search', 'team_sharing', 'advanced_filters', 'priority_support', 'sso', 'audit_logs', 'custom_integrations'],
+      maxSpaces: -1,         // Unlimited spaces
+      features: ['basic_search', 'team_spaces', 'space_collaboration', 'advanced_filters', 'priority_support', 'sso', 'audit_logs', 'custom_integrations'],
     },
   },
 
   // Metadata schema for Pinecone vectors
+  // Access control via space_ids array in metadata
   metadataSchema: {
     // Required fields
     org_id: 'string',            // Organization ID
     owner_user_id: 'string',     // User who owns/uploaded the document
     
-    // Access control
-    team_ids: 'array',           // List of team IDs with access
-    visibility: 'string',        // "private" | "team" | "org"
-    
     // Document identification
-    folder_id: 'string',         // Watch folder ID
     doc_id: 'string',            // Document ID
     chunk_no: 'number',          // Chunk number within document
+    
+    // Access control
+    space_ids: 'array',          // Array of space IDs this document belongs to
     
     // Content metadata
     mime: 'string',              // MIME type
     title: 'string',             // Document title
-    path: 'string',              // File path
+    filename: 'string',          // Original filename
+    filepath: 'string',          // Full file path
+    fileType: 'string',          // File extension
     text: 'string',              // Actual text content
     
     // Timestamps
@@ -135,13 +136,7 @@ const config = {
     // Optional fields
     lang: 'string',              // Language code
     source: 'string',            // "panlo-desktop" | "gdrive" | "onedrive" | "icloud"
-    shared_policy_version: 'number', // For incremental ACL updates
-    
-    // Legacy support
-    filename: 'string',          // Original filename
-    filepath: 'string',          // Full file path
-    fileType: 'string',          // File extension
-    folderName: 'string',        // Folder name (legacy)
+    summary: 'string',           // AI-generated summary
   },
 
   // API Configuration

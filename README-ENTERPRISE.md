@@ -72,52 +72,59 @@ See `schema-enterprise.sql` for complete schema. Key tables:
 - **org_members** - User-org relationships
 - **teams** - Logical groups within orgs
 - **team_members** - User-team relationships
-- **folders** - Watched folders with ACL
-- **folder_acl** - Explicit folder-team permissions
+- **spaces** - Collaborative workspaces for organizing documents
+- **space_members** - User-space relationships with roles
+- **space_files** - Document-space associations (many-to-many)
+- **space_activity** - Activity log for spaces
 - **documents** - Document metadata tracking
 
 ## 🔐 Authorization Model
 
-### Query-Time Authorization
+### Query-Time Authorization with Spaces
 
-When a user queries, the system builds a metadata filter:
+Access control is managed server-side via space membership:
 
 ```javascript
+// When user queries with spaces
+1. Verify user has access to specified spaces (space_members table)
+2. Get all doc_ids from space_files table for those spaces
+3. Build Pinecone filter:
 {
   "$and": [
+    { "org_id": "<orgId>" },
     { "status": "active" },
-    {
-      "$or": [
-        { "owner_user_id": "<userId>" },           // User's own docs
-        { "team_ids": { "$in": ["t1", "t5"] } },   // Team-shared docs
-        { "visibility": "org" }                     // Org-wide docs
-      ]
-    }
+    { "doc_id": { "$in": ["doc_1", "doc_2", ...] } }  // From spaces
   ]
 }
 ```
 
-### Sharing Flow
+### Spaces Collaboration Flow
 
-1. **User shares folder with teams**
-   - Updates `folders.team_ids` in DB
-   - Creates `folder_acl` records
-   - Increments `policy_version`
+1. **User creates space**
+   - Creates space record with owner role
+   - Personal or team space type
+   - Automatic space_members entry for owner
 
-2. **Background metadata propagation**
-   - Asynchronously updates vector metadata
-   - Sets `team_ids` on all vectors in folder
-   - Updates `shared_policy_version`
+2. **Add members to space**
+   - Owner invites users with roles (owner/contributor/viewer)
+   - Creates space_members records
+   - Activity logged in space_activity
 
-3. **Immediate enforcement**
-   - Server-side allowlist ensures instant access
-   - Query filters validate at request time
+3. **Upload documents to space**
+   - Documents uploaded directly to space
+   - Creates document record and space_files association
+   - Only contributors and owners can upload
 
-### Team-Only Sharing Rule
+4. **Query AI in space context**
+   - User specifies which space(s) to query
+   - Server validates space access
+   - Filters to only documents in those spaces
 
-- Users can only share folders with teams they're members of
-- Validated in `authService.canShareFolder()`
-- UI restricts team selection to user's teams
+### Role-Based Permissions
+
+- **Owner**: Full control - manage members, files, settings, delete space
+- **Contributor**: Add files, remove own files, query AI
+- **Viewer**: View files, query AI (read-only)
 
 ## 🚀 Quick Start
 
@@ -220,6 +227,193 @@ POST /api/orgs/:orgId/members
 }
 ```
 
+### Organization Invitations
+
+**Purpose:** Invite new users to join your organization via email with secure token-based links.
+
+#### Create Invitation (Admin Only)
+```http
+POST /api/organizations/:orgId/invitations
+
+{
+  "email": "newuser@example.com",
+  "role": "member",  // or "admin"
+  "message": "Welcome to our team!"  // Optional
+}
+
+Response 201:
+{
+  "success": true,
+  "invitation": {
+    "invitationId": 123,
+    "orgId": "org_abc123",
+    "email": "newuser@example.com",
+    "role": "member",
+    "token": "a1b2c3d4e5f6...",
+    "invitationLink": "https://app.panlo.com/accept-invitation/a1b2c3d4...",
+    "expiresAt": "2025-11-17T12:00:00Z",
+    "status": "pending"
+  }
+}
+```
+
+**What happens:**
+- Secure 64-character token generated
+- Email sent to invitee with invitation link
+- Invitation expires after 7 days
+- Activity logged for audit
+
+**Errors:**
+- `403` - Not admin/owner
+- `409` - User already member or pending invitation exists
+- `429` - Rate limit exceeded
+
+#### Get Invitation Details (Public)
+```http
+GET /api/invitations/:token
+
+Response 200:
+{
+  "success": true,
+  "invitation": {
+    "organizationId": "org_abc123",
+    "organizationName": "Acme Corp",
+    "inviterName": "John Doe",
+    "email": "invitee@example.com",
+    "role": "member",
+    "message": "Welcome!",
+    "expiresAt": "2025-11-17T12:00:00Z",
+    "status": "pending"
+  }
+}
+```
+
+**No authentication required** - Used to display invitation details before user logs in.
+
+#### Accept Invitation
+```http
+POST /api/invitations/:token/accept
+
+Response 200:
+{
+  "success": true,
+  "organizationId": "org_abc123",
+  "organizationName": "Acme Corp",
+  "role": "member",
+  "message": "Successfully joined Acme Corp"
+}
+```
+
+**Requirements:**
+- User must be authenticated (JWT token required)
+- User's email must match invitation email
+- Invitation must be pending and not expired
+
+**What happens:**
+- User added to `org_members` table with specified role
+- Invitation status updated to 'accepted'
+- Activity logged for audit
+
+#### Decline Invitation
+```http
+POST /api/invitations/:token/decline
+
+Response 200:
+{
+  "success": true,
+  "message": "Invitation declined"
+}
+```
+
+**Authentication optional** - Can decline without logging in.
+
+#### List Organization Invitations (Admin Only)
+```http
+GET /api/organizations/:orgId/invitations?status=pending&limit=50
+
+Response 200:
+{
+  "success": true,
+  "invitations": [
+    {
+      "invitationId": 123,
+      "email": "user@example.com",
+      "role": "member",
+      "status": "pending",
+      "inviterName": "John Doe",
+      "createdAt": "2025-11-10T12:00:00Z",
+      "expiresAt": "2025-11-17T12:00:00Z"
+    }
+  ],
+  "pagination": {
+    "total": 45,
+    "limit": 50,
+    "offset": 0
+  }
+}
+```
+
+**Query Parameters:**
+- `status` - Filter by status (pending, accepted, declined, expired, revoked)
+- `limit` - Max results (default 50, max 200)
+- `offset` - Pagination offset
+
+#### Revoke Invitation (Admin Only)
+```http
+DELETE /api/invitations/:invitationId
+
+Response 200:
+{
+  "success": true,
+  "message": "Invitation revoked"
+}
+```
+
+**What happens:**
+- Invitation status updated to 'revoked'
+- Invitation link becomes invalid
+- Activity logged with revoker ID
+
+#### Get My Invitations
+```http
+GET /api/users/me/invitations
+
+Response 200:
+{
+  "success": true,
+  "invitations": [
+    {
+      "invitationId": 125,
+      "token": "xyz789...",
+      "organizationId": "org_xyz789",
+      "organizationName": "Tech Startup Inc",
+      "inviterName": "Jane Smith",
+      "role": "member",
+      "message": "Join our team!",
+      "expiresAt": "2025-11-17T09:00:00Z"
+    }
+  ]
+}
+```
+
+**Returns:** All pending invitations for authenticated user's email.
+
+**Rate Limits:**
+- 10 invitations per organization per hour
+- 3 invitations per email per day
+- 100 maximum pending invitations per organization
+
+**Configuration Required:**
+```bash
+# In .env file
+EMAIL_USER=noreply@panlo.com
+EMAIL_PASSWORD=your_app_password
+EMAIL_FROM="Panlo" <noreply@panlo.com>
+APP_URL=https://app.panlo.com
+```
+
+**See also:** `ORG_INVITATIONS_API_DOCS.md` for complete API reference.
+
 ### Teams
 
 #### Create Team
@@ -247,46 +441,52 @@ POST /api/teams/:teamId/members
 }
 ```
 
-### Folders
+### Spaces
 
-#### Get User's Folders
+#### Get User's Spaces
 ```http
-GET /api/orgs/:orgId/folders
+GET /api/orgs/:orgId/spaces
 ```
 
-#### Create Folder
+#### Create Space
 ```http
-POST /api/orgs/:orgId/folders
+POST /api/orgs/:orgId/spaces
 
 {
   "name": "Q3 Reports",
-  "path": "/documents/Q3",
-  "visibility": "private"
+  "description": "Q3 financial reports and analysis",
+  "space_type": "team"
 }
 ```
 
-#### Share Folder
+#### Add Space Member
 ```http
-POST /api/folders/:folderId/share
+POST /api/spaces/:spaceId/members
 
 {
-  "teamIds": ["team_1", "team_2"],
-  "permission": "read"
+  "userId": "user_456",
+  "role": "contributor"
 }
 ```
 
-#### Unshare Folder
+#### Upload Document to Space
 ```http
-POST /api/folders/:folderId/unshare
+POST /api/spaces/:spaceId/upload
 
 {
-  "teamIds": ["team_1"]
+  "filepath": "/documents/Q3/report.pdf",
+  "filename": "Q3_Report.pdf",
+  "chunks": [...],
+  "metadata": {
+    "mime": "application/pdf",
+    "fileSize": 1024000
+  }
 }
 ```
 
-#### Get Sharing Status
+#### Get Space Files
 ```http
-GET /api/folders/:folderId/sharing
+GET /api/spaces/:spaceId/files
 ```
 
 ### Chat & Queries
@@ -298,7 +498,7 @@ POST /api/orgs/:orgId/chat
 {
   "query": "What are the Q3 revenue numbers?",
   "answerMode": "precise",
-  "folderIds": ["folder_123"],
+  "spaceIds": ["space_finance"],
   "chatHistory": [
     {
       "user": "What about Q2?",
@@ -331,7 +531,7 @@ POST /api/orgs/:orgId/query
 
 {
   "query": "revenue report",
-  "folderIds": ["folder_123"],
+  "spaceIds": ["space_finance"],
   "topK": 10,
   "threshold": 0.7
 }
@@ -339,12 +539,11 @@ POST /api/orgs/:orgId/query
 
 ### Documents
 
-#### Upload Document
+#### Upload Document to Space
 ```http
-POST /api/orgs/:orgId/documents
+POST /api/spaces/:spaceId/upload
 
 {
-  "folderId": "folder_123",
   "filepath": "/docs/report.pdf",
   "filename": "Q3_Report.pdf",
   "chunks": [
@@ -425,24 +624,19 @@ Response:
 ### Core Services
 
 1. **authService.js** - Authorization & permission checking
-   - Build metadata filters based on user/team membership
-   - Validate folder access
-   - Check sharing permissions
+   - Build metadata filters for org-level scoping
+   - Validate space access and membership
+   - Check space management permissions
 
 2. **chatbotClient-enterprise.js** - Vector queries & AI chat
-   - Single-namespace queries with ACL filters
+   - Space-aware queries with doc_id filtering
    - AI response generation
    - Vector CRUD operations
 
-3. **folderService.js** - Folder sharing management
-   - Share/unshare folders with teams
-   - Background metadata propagation
-   - ACL management
-
-4. **express-enterprise.js** - REST API endpoints
+3. **express-enterprise.js** - REST API endpoints
    - Organization/team/user management
-   - Folder operations
-   - Chat/query endpoints
+   - Space operations (create, manage members, files)
+   - Chat/query endpoints with space context
 
 ### Configuration
 
@@ -457,15 +651,17 @@ Response:
 
 ### Storage Strategy
 
-- **Single copy per org** - Documents stored once, shared via `team_ids`
-- **No duplication** - One folder shared with 10 teams = single set of vectors
+- **Single copy per org** - Documents stored once, accessible via space membership
+- **No duplication** - Documents can belong to multiple spaces without duplication
 - **Efficient namespaces** - One namespace per org, not per user
+- **Space-based access** - Access control managed server-side via space_members table
 
 ### Query Performance
 
 - **Single-namespace queries** - No cross-namespace fan-out
-- **Metadata filtering** - Fast filtering on `team_ids` array
+- **Server-side filtering** - Filter by doc_id based on space membership
 - **Pinecone serverless** - Auto-scaling, pay-per-use
+- **Simplified metadata** - Cleaner vector metadata without ACL fields
 
 ### Cost Optimization
 
@@ -504,25 +700,23 @@ To migrate a user to enterprise:
 
 ## 📝 Client Integration
 
-### Expected Filter Format
+### Expected Query Format
 
-When querying from client apps:
+When querying from client apps with Spaces:
 
 ```javascript
-// Legacy format (still supported for backward compatibility)
+// Spaces format
 {
-  "watchFolderNames": ["test", "AWS"],
-  "smartFolderNames": ["MySmartFolder"],
-  "filePaths": ["/path/to/file.pdf"]
-}
-
-// Enterprise format (recommended)
-{
-  "folderIds": ["folder_123", "folder_456"],
-  "additionalFilters": {
+  "spaceIds": ["space_finance", "space_strategy"],  // Query specific spaces
+  "additionalFilters": {                             // Optional
     "mime": "application/pdf",
     "created_at": { "$gte": 1730000000 }
   }
+}
+
+// Alternative: Query specific files
+{
+  "fileIds": ["doc_123", "doc_456"]
 }
 ```
 
@@ -530,9 +724,10 @@ When querying from client apps:
 
 1. **Authenticate** - Get JWT token
 2. **Select org** - User chooses active organization
-3. **Load folders** - Fetch user's accessible folders
-4. **Query** - Send chat/query requests with folder filters
-5. **Results** - Display AI responses with source citations
+3. **Load spaces** - Fetch user's accessible spaces
+4. **Select space** - User chooses which space(s) to query
+5. **Query** - Send chat/query requests with space context
+6. **Results** - Display AI responses with source citations
 
 ## 🧪 Testing
 

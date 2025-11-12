@@ -33,6 +33,7 @@
     "multer": "^2.0.0",
     "mysql2": "^3.15.3",
     "node-fetch": "^2.7.0",
+    "nodemailer": "^7.0.10",
     "officeparser": "^5.1.1",
     "openai": "^6.6.0",
     "uuid": "^11.1.0"

@@ -31,12 +31,14 @@ CREATE TABLE users (
   google_sub VARCHAR(255) UNIQUE,            -- Google OAuth subject
   avatar_url TEXT,
   current_org_id VARCHAR(255),               -- Last active org
+  current_space_id VARCHAR(255),             -- Last active space (for Spaces feature)
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   preferences JSON,                          -- User preferences
   FOREIGN KEY (current_org_id) REFERENCES orgs(org_id) ON DELETE SET NULL,
   INDEX idx_email (email),
-  INDEX idx_google_sub (google_sub)
+  INDEX idx_google_sub (google_sub),
+  INDEX idx_current_space (current_space_id)
 );
 
 -- Organization members
@@ -88,71 +90,127 @@ CREATE TABLE team_members (
   INDEX idx_team (team_id)
 );
 
--- Folders table
--- Watched folders with metadata and sharing
-CREATE TABLE folders (
-  folder_id VARCHAR(255) PRIMARY KEY,        -- e.g., "folder_abc123"
+-- ============================================
+-- SPACES SYSTEM
+-- Collaborative workspaces for organizing documents
+-- ============================================
+
+-- Spaces table
+-- Personal and team spaces for organizing files
+CREATE TABLE spaces (
+  space_id VARCHAR(255) PRIMARY KEY,
   org_id VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  space_type ENUM('personal', 'team') NOT NULL DEFAULT 'team',
+  visibility ENUM('private', 'shared') NOT NULL DEFAULT 'private',
   owner_user_id VARCHAR(255) NOT NULL,
-  path TEXT NOT NULL,                        -- Full filesystem path
-  name VARCHAR(255) NOT NULL,                -- Folder display name
-  visibility VARCHAR(50) DEFAULT 'private',  -- "private", "team", "org"
-  team_ids JSON,                             -- Array of team_ids with access
-  policy_version INT DEFAULT 1,              -- Increments on ACL changes
-  status VARCHAR(50) DEFAULT 'active',       -- "active", "paused", "deleted"
-  sync_status VARCHAR(50) DEFAULT 'idle',    -- "idle", "syncing", "error"
-  last_synced_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  settings JSON,                             -- Folder-level settings
+  settings JSON,
   FOREIGN KEY (org_id) REFERENCES orgs(org_id) ON DELETE CASCADE,
   FOREIGN KEY (owner_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
   INDEX idx_org (org_id),
   INDEX idx_owner (owner_user_id),
-  INDEX idx_status (status)
+  INDEX idx_space_type (space_type),
+  INDEX idx_created_at (created_at)
 );
 
--- Folder ACL (explicit access control)
--- Tracks which teams have access to which folders
-CREATE TABLE folder_acl (
-  folder_id VARCHAR(255) NOT NULL,
-  team_id VARCHAR(255) NOT NULL,
-  permission VARCHAR(50) DEFAULT 'read',     -- "read", "write"
-  shared_by VARCHAR(255) NOT NULL,
-  shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (folder_id, team_id),
-  FOREIGN KEY (folder_id) REFERENCES folders(folder_id) ON DELETE CASCADE,
-  FOREIGN KEY (team_id) REFERENCES teams(team_id) ON DELETE CASCADE,
-  FOREIGN KEY (shared_by) REFERENCES users(user_id) ON DELETE CASCADE,
-  INDEX idx_folder (folder_id),
-  INDEX idx_team (team_id)
+-- Space members
+-- Links users to spaces with roles
+CREATE TABLE space_members (
+  space_id VARCHAR(255) NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
+  role ENUM('owner', 'contributor', 'viewer') NOT NULL DEFAULT 'viewer',
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  added_by VARCHAR(255),
+  PRIMARY KEY (space_id, user_id),
+  FOREIGN KEY (space_id) REFERENCES spaces(space_id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+  FOREIGN KEY (added_by) REFERENCES users(user_id) ON DELETE SET NULL,
+  INDEX idx_user (user_id),
+  INDEX idx_role (role),
+  INDEX idx_joined_at (joined_at)
 );
 
--- Documents table (optional - for tracking document metadata)
+-- Space files
+-- Many-to-many relationship between spaces and documents
+CREATE TABLE space_files (
+  space_id VARCHAR(255) NOT NULL,
+  doc_id VARCHAR(255) NOT NULL,
+  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  added_by VARCHAR(255),
+  notes TEXT,
+  tags JSON,
+  PRIMARY KEY (space_id, doc_id),
+  FOREIGN KEY (space_id) REFERENCES spaces(space_id) ON DELETE CASCADE,
+  FOREIGN KEY (doc_id) REFERENCES documents(doc_id) ON DELETE CASCADE,
+  FOREIGN KEY (added_by) REFERENCES users(user_id) ON DELETE SET NULL,
+  INDEX idx_doc (doc_id),
+  INDEX idx_added_by (added_by),
+  INDEX idx_added_at (added_at)
+);
+
+-- Space activity log
+-- Tracks all space-related activities
+CREATE TABLE space_activity (
+  activity_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  space_id VARCHAR(255) NOT NULL,
+  user_id VARCHAR(255),
+  activity_type ENUM(
+    'space_created',
+    'space_updated',
+    'space_deleted',
+    'member_added',
+    'member_removed',
+    'member_role_changed',
+    'file_added',
+    'file_removed',
+    'query_executed'
+  ) NOT NULL,
+  details JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (space_id) REFERENCES spaces(space_id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+  INDEX idx_space (space_id),
+  INDEX idx_user (user_id),
+  INDEX idx_activity_type (activity_type),
+  INDEX idx_created_at (created_at)
+);
+
+-- Update users table to include space foreign key (if not already done above)
+-- Note: current_space_id already added to users table definition above
+ALTER TABLE users
+ADD CONSTRAINT fk_user_current_space 
+  FOREIGN KEY (current_space_id) REFERENCES spaces(space_id) ON DELETE SET NULL;
+
+-- ============================================
+-- DOCUMENTS
+-- ============================================
+
+-- Documents table
+-- Tracks document metadata organized via spaces
 CREATE TABLE documents (
   doc_id VARCHAR(255) PRIMARY KEY,
-  folder_id VARCHAR(255) NOT NULL,
   org_id VARCHAR(255) NOT NULL,
   owner_user_id VARCHAR(255) NOT NULL,
-  filepath TEXT NOT NULL,
+  filepath TEXT NOT NULL,                    -- Full filesystem path
   filename VARCHAR(255) NOT NULL,
   mime_type VARCHAR(100),
   file_size BIGINT,
   content_hash VARCHAR(64),                  -- SHA-256 for deduplication
   chunks INT DEFAULT 0,                      -- Number of vector chunks
   summary TEXT,                              -- AI-generated summary
-  smart_folder_ids JSON,                     -- Array of smart folder IDs this doc belongs to
   status VARCHAR(50) DEFAULT 'active',       -- "active", "deleted", "stale"
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (folder_id) REFERENCES folders(folder_id) ON DELETE CASCADE,
   FOREIGN KEY (org_id) REFERENCES orgs(org_id) ON DELETE CASCADE,
   FOREIGN KEY (owner_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-  INDEX idx_folder (folder_id),
   INDEX idx_org (org_id),
   INDEX idx_owner (owner_user_id),
   INDEX idx_hash (content_hash),
   INDEX idx_status (status),
+  INDEX idx_filepath (filepath(255)),        -- Index on filepath for lookups
   FULLTEXT idx_summary (summary)             -- Full-text search on summary
 );
 
@@ -161,8 +219,8 @@ CREATE TABLE audit_log (
   log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
   org_id VARCHAR(255),
   user_id VARCHAR(255),
-  action VARCHAR(100) NOT NULL,              -- "folder_share", "team_add_member", etc.
-  resource_type VARCHAR(50),                 -- "folder", "team", "document"
+  action VARCHAR(100) NOT NULL,              -- "space_create", "team_add_member", etc.
+  resource_type VARCHAR(50),                 -- "space", "team", "document"
   resource_id VARCHAR(255),
   details JSON,
   ip_address VARCHAR(45),
@@ -191,22 +249,26 @@ JOIN org_members om ON u.user_id = om.user_id
 JOIN teams t ON om.org_id = t.org_id
 LEFT JOIN team_members tm ON t.team_id = tm.team_id AND u.user_id = tm.user_id;
 
--- View: Folder access summary
-CREATE VIEW folder_access AS
+-- View: Space access summary
+CREATE VIEW space_access AS
 SELECT 
-  f.folder_id,
-  f.org_id,
-  f.owner_user_id,
-  f.name AS folder_name,
-  f.visibility,
-  fa.team_id,
-  t.name AS team_name,
-  fa.permission,
-  fa.shared_by,
-  fa.shared_at
-FROM folders f
-LEFT JOIN folder_acl fa ON f.folder_id = fa.folder_id
-LEFT JOIN teams t ON fa.team_id = t.team_id;
+  s.space_id,
+  s.org_id,
+  s.name AS space_name,
+  s.description,
+  s.space_type,
+  s.visibility,
+  s.owner_user_id,
+  sm.user_id,
+  sm.role,
+  sm.joined_at,
+  sm.added_by,
+  u.name AS user_name,
+  u.email AS user_email,
+  (SELECT COUNT(*) FROM space_files WHERE space_id = s.space_id) AS file_count
+FROM spaces s
+LEFT JOIN space_members sm ON s.space_id = sm.space_id
+LEFT JOIN users u ON sm.user_id = u.user_id;
 
 -- ============================================
 -- Chats Tables
@@ -220,8 +282,8 @@ CREATE TABLE IF NOT EXISTS chats (
     user_id VARCHAR(255) NOT NULL,
     title VARCHAR(500),
     description TEXT,
-    folder_ids JSON,  -- Watch/smart folders to query
-    file_ids JSON,     -- Specific files to query
+    space_ids JSON,    -- Spaces to query
+    file_ids JSON,     -- Specific files to query (optional)
     message_count INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
     last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -316,4 +378,31 @@ SELECT
   cs.shared_at
 FROM chats c
 LEFT JOIN chat_shares cs ON c.chat_id = cs.chat_id;
+
+-- ============================================
+-- SPACES SYSTEM NOTES
+-- ============================================
+
+/*
+SPACES SYSTEM OVERVIEW:
+- Spaces are the primary organizational unit for documents
+- Each user gets a personal space automatically on signup
+- Users can create team spaces and add members with roles (owner/contributor/viewer)
+- Files can belong to multiple spaces (many-to-many relationship)
+- AI queries are scoped to space context
+
+ROLE PERMISSIONS:
+- Owner: Full control (manage members, files, settings, delete space)
+- Contributor: Add files, remove own files, query AI
+- Viewer: View files, query AI (read-only)
+
+IMPLEMENTATION:
+1. Personal space created automatically on user signup
+2. Users can create team spaces and invite members
+3. Documents uploaded directly to spaces
+4. Space membership controls access to documents
+5. AI queries filtered by space context
+
+For complete documentation, see: SPACES-SYSTEM.md
+*/
 

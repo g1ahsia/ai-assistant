@@ -6,7 +6,7 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
 import config, { getOrgNamespace } from './config-enterprise.js';
-import { buildAuthFilter, buildFolderFilter } from './authService.js';
+import { buildAuthFilter } from './authService.js';
 
 const pc = new Pinecone({ apiKey: config.pinecone.apiKey });
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
@@ -14,19 +14,18 @@ const indexName = config.pinecone.indexName;
 const index = pc.index(indexName);
 
 /**
- * Query Pinecone with team-based access control
+ * Query Pinecone with space-based access control
  * @param {Object} db - Database connection
  * @param {string} orgId - Organization ID
  * @param {string} userId - User ID making the query
  * @param {string} query - Search query text
- * @param {Object} options - Query options
+ * @param {Object} options - Query options (additionalFilters should include doc_id filter for space context)
  * @returns {Array} Matching vectors
  */
 export async function queryWithAuth(db, orgId, userId, query, options = {}) {
   const {
     topK = config.vector.topK,
     threshold = config.vector.threshold,
-    folderIds = [],
     additionalFilters = {},
   } = options;
 
@@ -39,10 +38,8 @@ export async function queryWithAuth(db, orgId, userId, query, options = {}) {
   const namespace = getOrgNamespace(orgId);
   console.log('Namespace:', namespace);
 
-  // Build authorization filter
-  const authFilter = folderIds.length > 0
-    ? await buildFolderFilter(db, userId, orgId, folderIds)
-    : await buildAuthFilter(db, userId, orgId, additionalFilters);
+  // Build authorization filter (space filtering via doc_id is in additionalFilters)
+  const authFilter = await buildAuthFilter(db, userId, orgId, additionalFilters);
 
   console.log('Auth filter:', JSON.stringify(authFilter, null, 2));
 
@@ -82,7 +79,7 @@ export async function queryWithAuth(db, orgId, userId, query, options = {}) {
  * @param {string} userId - User ID
  * @param {string} userQuery - User's question
  * @param {Object} chatHistory - Previous chat context
- * @param {Object} options - Query options
+ * @param {Object} options - Query options (additionalFilters can include doc_id filter for spaces)
  * @returns {Object} { aiResponse, citedSources, context }
  */
 export async function generateResponse(
@@ -95,7 +92,6 @@ export async function generateResponse(
 ) {
   const { 
     answerMode = 'precise',
-    folderIds = [],
     additionalFilters = {},
   } = options;
 
@@ -104,7 +100,6 @@ export async function generateResponse(
 
   // Query relevant documents
   const matches = await queryWithAuth(db, orgId, userId, userQuery, {
-    folderIds,
     additionalFilters,
   });
 
@@ -114,8 +109,8 @@ export async function generateResponse(
         const meta = match.metadata;
         return `### Source: ${match.id}
 Filename: ${meta.filename || meta.title || 'Unknown'}
+File Path: ${meta.filepath || 'Unknown'}
 File Type: ${meta.mime || meta.fileType || 'Unknown'}
-Folder: ${meta.folder_id}
 Score: ${match.score.toFixed(2)}
 Content: ${meta.text}`;
       }).join('\n\n')
@@ -391,23 +386,25 @@ export async function upsertVectors(orgId, vectors) {
  */
 function validateMetadata(metadata) {
   // Ensure required fields exist
-  const required = ['org_id', 'owner_user_id', 'doc_id', 'folder_id'];
+  const required = ['org_id', 'owner_user_id', 'doc_id', 'space_ids'];
   for (const field of required) {
     if (!metadata[field]) {
       throw new Error(`Missing required metadata field: ${field}`);
     }
   }
   
+  // Ensure space_ids is an array
+  if (!Array.isArray(metadata.space_ids)) {
+    throw new Error('space_ids must be an array');
+  }
+  
   // Normalize and set defaults
   return {
     ...metadata,
-    team_ids: metadata.team_ids || [],
-    visibility: metadata.visibility || 'private',
     status: metadata.status || 'active',
     chunk_no: metadata.chunk_no || 0,
     created_at: metadata.created_at || Date.now(),
     updated_at: metadata.updated_at || Date.now(),
-    shared_policy_version: metadata.shared_policy_version || 1,
   };
 }
 
