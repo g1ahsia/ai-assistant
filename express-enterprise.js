@@ -2445,38 +2445,69 @@ app.delete('/api/spaces/:spaceId/files/:docId', authenticateToken, async (req, r
 
     const orgId = spaces[0].org_id;
 
-    // Get document filename for activity log
+    // Get document info for activity log and vector deletion
     const [docs] = await pool.query(
-      'SELECT filename FROM documents WHERE doc_id = ?',
+      'SELECT filename, chunks FROM documents WHERE doc_id = ?',
       [docId]
     );
 
-    // Remove from space_files
+    if (docs.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const filename = docs[0].filename;
+    const chunkCount = docs[0].chunks;
+
+    console.log(`🗑️ Deleting file: ${filename} (${docId}) with ${chunkCount} chunks`);
+
+    // STEP 1: Remove from space_files table
     await pool.query(
       'DELETE FROM space_files WHERE space_id = ? AND doc_id = ?',
       [spaceId, docId]
     );
+    console.log('✅ Step 1: Removed from space_files table');
 
-    // Update Pinecone metadata to remove this space from space_ids
-    await updateDocumentSpaceIds(orgId, docId, spaceId, 'remove');
+    // STEP 2: Delete vectors from Pinecone
+    const vectorIds = [];
+    for (let i = 0; i < chunkCount; i++) {
+      vectorIds.push(`${docId}:${i}`);
+    }
+    
+    if (vectorIds.length > 0) {
+      await chatbotClient.deleteVectors(orgId, vectorIds);
+      console.log(`✅ Step 2: Deleted ${vectorIds.length} vectors from Pinecone`);
+    }
 
-    // Log activity
+    // STEP 3: Delete from documents table
     await pool.query(
-      `INSERT INTO space_activity (space_id, user_id, activity_type, details)
-       VALUES (?, ?, 'file_removed', ?)`,
-      [spaceId, userId, JSON.stringify({ 
-        doc_id: docId, 
-        filename: docs[0]?.filename 
-      })]
+      'DELETE FROM documents WHERE doc_id = ?',
+      [docId]
     );
+    console.log('✅ Step 3: Deleted from documents table');
+
+    // Log activity (non-critical - don't fail request if this errors)
+    try {
+      await pool.query(
+        `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+         VALUES (?, ?, 'file_removed', ?)`,
+        [spaceId, userId, JSON.stringify({ 
+          doc_id: docId, 
+          filename: filename 
+        })]
+      );
+      console.log('✅ Activity logged');
+    } catch (activityError) {
+      console.warn('⚠️ Could not log activity (non-critical):', activityError.message);
+    }
 
     res.json({
       success: true,
-      message: 'File removed from space'
+      message: 'File deleted successfully',
+      deletedVectors: vectorIds.length
     });
   } catch (error) {
-    console.error('Error removing file from space:', error);
-    res.status(500).json({ error: 'Failed to remove file from space' });
+    console.error('Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
   }
 });
 
