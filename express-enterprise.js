@@ -1791,6 +1791,94 @@ app.get('/api/spaces/:spaceId/members', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/spaces/:spaceId/members
+ * Add a member to a space (owners only)
+ */
+app.post('/api/spaces/:spaceId/members', authenticateToken, async (req, res) => {
+  const { spaceId } = req.params;
+  const { userId: requesterId } = req.user;
+  const { userId: targetUserId, role = 'viewer' } = req.body;
+
+  const validRoles = ['owner', 'contributor', 'viewer'];
+
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role specified' });
+  }
+
+  try {
+    // Verify requester is owner of the space and get org_id
+    const [spaceRows] = await pool.query(
+      `SELECT s.org_id, sm.role AS requester_role
+       FROM spaces s
+       INNER JOIN space_members sm 
+         ON s.space_id = sm.space_id AND sm.user_id = ?
+       WHERE s.space_id = ?`,
+      [requesterId, spaceId]
+    );
+
+    if (spaceRows.length === 0) {
+      return res.status(403).json({ error: 'You are not a member of this space' });
+    }
+
+    if (spaceRows[0].requester_role !== 'owner') {
+      return res.status(403).json({ error: 'Only space owners can add members' });
+    }
+
+    const orgId = spaceRows[0].org_id;
+
+    // Verify target user belongs to org
+    const [orgMembers] = await pool.query(
+      'SELECT role FROM org_members WHERE org_id = ? AND user_id = ?',
+      [orgId, targetUserId]
+    );
+
+    if (orgMembers.length === 0) {
+      return res.status(400).json({ error: 'User must be a member of this organization' });
+    }
+
+    // Ensure user not already in space
+    const [existingMembers] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, targetUserId]
+    );
+
+    if (existingMembers.length > 0) {
+      return res.status(400).json({ error: 'User is already a member of this space' });
+    }
+
+    await pool.query(
+      `INSERT INTO space_members (space_id, user_id, role, added_by)
+       VALUES (?, ?, ?, ?)`,
+      [spaceId, targetUserId, role, requesterId]
+    );
+
+    await pool.query(
+      `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+       VALUES (?, ?, 'member_added', ?)`,
+      [spaceId, requesterId, JSON.stringify({ addedUserId: targetUserId, role })]
+    );
+
+    res.status(201).json({
+      success: true,
+      member: {
+        userId: targetUserId,
+        role,
+      },
+    });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'User is already a member of this space' });
+    }
+    console.error('Error adding space member:', error);
+    res.status(500).json({ error: 'Failed to add member to space' });
+  }
+});
+
 // ============================================
 // Chat / Query Endpoints
 // ============================================

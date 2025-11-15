@@ -582,16 +582,118 @@ Click 👤 icon → Profile menu appears:
 
 #### **Screen 8: Space Context Menu & Add Members**
 
-**Right-click on space → Context menu:**
+**Access Points for Space Menu:**
+
+**1. In Files View - Right-click space title:**
 ```
+┌──┬──────────────────────┬──────────────────────────────────┐
+│  │  [Marketing Q4 ▾] ◄──┐│  Files                           │
+│  │  Owner • 24 files    ││  ────────────────────────────────│
+│  │  ────────────────    ││                                  │
+│  │                      ││  ┌─────────────────────────────┐│
+│  │  [Search files...]   ││  │ • View Space Details        ││
+│  │                      ││  │ • Add Members               ││
+│  │  📄 AT Manual        ││  │ • Space Settings            ││
+│  │  📄 Q3-Report.pdf    ││  │ • Copy Space Link           ││
+│  │                      ││  │ ───────────────────────────  ││
+│  │                      ││  │ • Leave Space               ││
+│  │                      ││  │ • Delete Space (owner)      ││
+│  │                      ││  └─────────────────────────────┘│
+└──┴──────────────────────┴──────────────────────────────────┘
+```
+
+**2. In Space Selector Modal - Three-dot menu:**
+```
+┌─────────────────────────────────────┐
+│  Select Space                  [×] │
+├─────────────────────────────────────┤
+│                                     │
+│  Your Spaces in Acme Corp           │
+│                                     │
+│  📊 My Personal Space               │
+│     Owner • 12 files                │
+│                                     │
+│  📊 Marketing Q4              ✓    │
+│     Owner • 24 files         [···]◄─┐
+│                                     │ │
+│  📊 Engineering Team                │ │
+│     Contributor • 156 files  [···] │ │
+│                                     │ │
+│  ─────────────────────────────────  │ │
+│  [+ New Space]                      │ │
+└─────────────────────────────────────┘ │
+                                         │
+  ┌──────────────────────────────────────┘
+  │
+  ▼
 ┌─────────────────────────────┐
-│ • View Details              │
+│ • View Space Details        │
 │ • Add Members               │
-│ • Add Files                 │
+│ • Space Settings            │
+│ ───────────────────────────  │
 │ • Leave Space               │
-│ • Delete Space (owner only) │
+│ • Delete Space (owner)      │
 └─────────────────────────────┘
 ```
+
+**3. In Chat View - Click space icon (📊) in left bar:**
+```
+Click 📊 icon → Context menu appears:
+
+┌─────────────────────────────┐
+│  Current Space              │
+├─────────────────────────────┤
+│  📊 Marketing Q4            │
+│     Owner • 24 files        │
+│                             │
+│  [Switch Space]             │
+│  [Add Members]              │
+│  [Space Settings]           │
+└─────────────────────────────┘
+```
+
+**Space Context Menu (Full Options):**
+
+**For Space Owners:**
+```
+┌─────────────────────────────┐
+│ • View Space Details        │  ← Shows files, members, activity
+│ • Add Members               │  ← Invite users to space
+│ • Space Settings            │  ← Rename, description, permissions
+│ • Copy Space Link           │  ← Copy shareable link (if enabled)
+│ ───────────────────────────  │
+│ • Export Space Data         │  ← Download all files/metadata
+│ • Archive Space             │  ← Hide from active list
+│ ───────────────────────────  │
+│ • Delete Space              │  ← Permanent deletion (with warning)
+└─────────────────────────────┘
+```
+
+**For Space Contributors:**
+```
+┌─────────────────────────────┐
+│ • View Space Details        │
+│ • Space Settings            │  ← Read-only view
+│ ───────────────────────────  │
+│ • Leave Space               │
+└─────────────────────────────┘
+```
+
+**For Space Viewers:**
+```
+┌─────────────────────────────┐
+│ • View Space Details        │  ← Read-only
+│ • Export My Notes           │  ← Personal notes only
+│ ───────────────────────────  │
+│ • Leave Space               │
+└─────────────────────────────┘
+```
+
+**Keyboard Shortcuts:**
+- Right-click space title → Context menu
+- Click [···] button → Context menu
+- `⌘⇧M` (Mac) / `Ctrl+Shift+M` (Win) → Add Members (when space active)
+- `⌘I` (Mac) / `Ctrl+I` (Win) → View Space Details
 
 **Click "Add Members" → Modal:**
 ```
@@ -641,6 +743,89 @@ Click 👤 icon → Profile menu appears:
 - Personal spaces have only one member (the owner)
 
 **API Call:** `POST /api/spaces/{spaceId}/members`
+
+---
+
+#### **Screen 8a: Space Settings** (Click [···] → "Space Settings")
+
+```
+┌─────────────────────────────────────────────────┐
+│  Space Settings - Marketing Q4         [✕]     │
+├─────────────────────────────────────────────────┤
+│                                                   │
+│  📊 General                                      │
+│                                                   │
+│  Space Name *                                    │
+│  ┌───────────────────────────────────────────┐ │
+│  │ Marketing Q4                               │ │
+│  └───────────────────────────────────────────┘ │
+│                                                   │
+│  Description                                     │
+│  ┌───────────────────────────────────────────┐ │
+│  │ Q4 marketing campaign materials and        │ │
+│  │ planning documents                         │ │
+│  └───────────────────────────────────────────┘ │
+│                                                   │
+│  Space Type: Team Space                         │
+│  Created: Jan 15, 2024 by You                   │
+│                                                   │
+│  ──────────────────────────────────────────────  │
+│                                                   │
+│  👥 Members (8)                    [View All]   │
+│  • 2 Owners, 4 Contributors, 2 Viewers          │
+│                                                   │
+│  ──────────────────────────────────────────────  │
+│                                                   │
+│  📁 Files (24)                     [View All]   │
+│  • Total size: 156 MB                           │
+│  • Last updated: 2 hours ago                    │
+│                                                   │
+│  ──────────────────────────────────────────────  │
+│                                                   │
+│  🔒 Privacy & Sharing                           │
+│                                                   │
+│  ┌───────────────────────────────────────────┐ │
+│  │ ☑ Allow members to invite others          │ │
+│  │ ☑ Allow link sharing (generate link)      │ │
+│  │ ☐ Make discoverable in org                │ │
+│  └───────────────────────────────────────────┘ │
+│                                                   │
+│  Space Link (if enabled)                        │
+│  ┌───────────────────────────────────────────┐ │
+│  │ https://panlo.app/s/mktg-q4-xyz123  [📋] │ │
+│  └───────────────────────────────────────────┘ │
+│                                                   │
+│  ──────────────────────────────────────────────  │
+│                                                   │
+│  ⚙️ Advanced                                     │
+│                                                   │
+│  [Archive Space]     [Export Space Data]        │
+│                                                   │
+│  [Delete Space]  ⚠️ Permanent action            │
+│                                                   │
+│  [Cancel]                    [Save Changes]     │
+│                                                   │
+└─────────────────────────────────────────────────┘
+```
+
+**API Calls:**
+- `GET /api/spaces/{spaceId}` - Get space details
+- `PUT /api/spaces/{spaceId}` - Update space settings
+- `POST /api/spaces/{spaceId}/link` - Generate shareable link
+- `DELETE /api/spaces/{spaceId}` - Delete space
+
+**Features:**
+- Edit space name and description
+- View member and file counts
+- Configure privacy and sharing settings
+- Generate shareable links (owners only)
+- Archive or delete space (owners only)
+- Real-time updates for member/file counts
+
+**Permissions:**
+- **Owners**: Full edit access, can delete
+- **Contributors**: Read-only view, cannot change settings
+- **Viewers**: Read-only view, basic info only
 
 ---
 
@@ -1336,7 +1521,69 @@ Click 👤 icon → Profile menu appears:
 
 ---
 
-### Workflow 3c: Quick Space Switching
+### Workflow 3c: Manage Space Settings and Sharing
+```
+1. In Files view, ensure you're in the desired space
+2. Right-click on space title "[Marketing Q4 ▾]" at top
+   OR
+   Click 📊 icon in left bar → Click [···] next to space
+3. Context menu appears with options
+4. Click "Space Settings"
+5. Space Settings modal opens showing:
+   
+   ┌─────────────────────────────────────────────┐
+   │  Space Settings - Marketing Q4      [✕]    │
+   ├─────────────────────────────────────────────┤
+   │  📊 General                                 │
+   │  • Edit name and description                │
+   │  • View creation date and creator           │
+   │                                             │
+   │  👥 Members (8)               [View All]   │
+   │  • Quick view of member breakdown           │
+   │                                             │
+   │  🔒 Privacy & Sharing                       │
+   │  ☑ Allow members to invite others          │
+   │  ☑ Allow link sharing                      │
+   │  ☐ Make discoverable in org                │
+   │                                             │
+   │  Space Link: https://panlo.app/s/xyz  [📋] │
+   │                                             │
+   │  [Archive Space]  [Export Data]            │
+   │  [Delete Space] ⚠️                         │
+   └─────────────────────────────────────────────┘
+
+6. Make desired changes:
+   - Update space name or description
+   - Enable/disable link sharing
+   - Toggle member invitation permissions
+   - Copy shareable link to invite external users
+   
+7. Click [Save Changes]
+8. ✅ Settings updated immediately
+9. Toast notification: "Space settings updated"
+
+To Share Space via Link:
+1. Open Space Settings
+2. Enable "Allow link sharing" toggle
+3. Copy the generated link
+4. Share link via email/Slack/etc
+5. Recipients with link can request access
+6. Owner approves/denies access requests
+```
+
+**Sharing Options:**
+- **Add Members Directly**: Context menu → "Add Members" → Select from org
+- **Share via Link**: Space Settings → Enable link sharing → Copy link
+- **Make Discoverable**: Space Settings → "Make discoverable in org" → All org members can find and request access
+
+**API Calls:**
+- `PUT /api/spaces/{spaceId}` - Update space settings
+- `POST /api/spaces/{spaceId}/link` - Generate shareable link
+- `GET /api/spaces/{spaceId}/access-requests` - View pending access requests
+
+---
+
+### Workflow 3d: Quick Space Switching
 ```
 1. Currently in "Marketing Q4" space
 2. Click on space title "Marketing Q4" at top of interface
@@ -1775,6 +2022,9 @@ Click 👤 icon → Profile menu appears:
 | **Switch Organization** | 🏢 icon (top of left bar) | Change active organization |
 | **Switch/Select Space** | 📊 icon (left bar) OR space selector | Opens modal to switch spaces |
 | **Create Team Space** | 📊 icon → Modal → "[+ New Space]" | Create new team space |
+| **Space Context Menu** | Right-click space OR click [···] | Access space settings & actions |
+| **Space Settings** | Context menu → "Space Settings" | Edit space name, privacy, members |
+| **Share Space** | Context menu → "Add Members" | Invite users to space |
 | **Upload File** | Files view: "[+ Upload]" button | Upload new document to space |
 | **Add Existing File** | Files view: "[+ Add File]" button | Add org file to space |
 | **Add File to Chat** | Chat view: "[Add Context]" button | Include specific files in conversation |
@@ -2223,9 +2473,10 @@ Toggle Sidebar                  ⌘B
 | **5** | Main Application Interface | Three-panel layout (default) | `POST /api/orgs/{orgId}/chat` |
 | **5a** | Detail View - File Content | File viewing in detail panel | `GET /api/orgs/{orgId}/documents/{docId}`<br>`GET /api/orgs/{orgId}/documents/{docId}/content` |
 | **5b** | Detail View - Chat History | Chat history in detail panel | `GET /api/chats/{chatId}`<br>`GET /api/chats/{chatId}/messages` |
-| **6** | Simplified Chat View | Two-panel focus mode (optional) | `POST /api/orgs/{orgId}/chat`<br>`POST /api/orgs/{orgId}/chats` |
-| **7** | Add Watch Folder | Folder selection & setup | `POST /api/orgs/{orgId}/folders` |
-| **8** | Folder Context Menu | Right-click folder actions | `POST /api/folders/{folderId}/share` |
+| **6** | Chat Panel Collapsed View | Two-panel focus mode | - |
+| **7** | Create New Space | Space creation modal | `POST /api/orgs/{orgId}/spaces` |
+| **8** | Space Context Menu & Add Members | Right-click space actions | `POST /api/spaces/{spaceId}/members` |
+| **8a** | Space Settings | Edit space configuration | `GET /api/spaces/{spaceId}`<br>`PUT /api/spaces/{spaceId}`<br>`POST /api/spaces/{spaceId}/link` |
 | **9** | Settings Modal | Main settings navigation | - |
 | **10** | Notifications Settings | Configure notifications | `PUT /api/users/preferences/notifications` |
 | **11** | Watch Folders Settings | Configure folder behavior | `PUT /api/users/preferences/folders` |

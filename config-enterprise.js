@@ -51,7 +51,7 @@ const config = {
     metric: 'cosine',
     
     // Query defaults
-    topK: 30,
+    topK: 5,              // Reduced from 10 - only get top 5 most relevant chunks
     threshold: 0.70,
     
     // Chunk settings

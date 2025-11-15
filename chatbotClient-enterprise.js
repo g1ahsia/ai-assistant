@@ -107,17 +107,22 @@ export async function generateResponse(
   const relevantText = matches.length > 0
     ? matches.map((match, i) => {
         const meta = match.metadata;
+        // Truncate text to 400 chars for faster processing (full text is ~1000 chars)
+        const truncatedText = meta.text?.length > 400 
+          ? meta.text.substring(0, 400) + '...' 
+          : meta.text;
         return `### Source: ${match.id}
 Filename: ${meta.filename || meta.title || 'Unknown'}
 File Path: ${meta.filepath || 'Unknown'}
 File Type: ${meta.mime || meta.fileType || 'Unknown'}
 Score: ${match.score.toFixed(2)}
-Content: ${meta.text}`;
+Content: ${truncatedText}`;
       }).join('\n\n')
     : 'No relevant information found in the database.';
 
-  // Build chat context
+  // Build chat context (limit to last 3 exchanges for speed)
   const memoryContext = chatHistory
+    .slice(-3)  // Only use last 3 messages to reduce context size
     .map(msg => `User: ${msg.user}\nAI: ${msg.ai}\nCited Sources: ${msg.citedSources}`)
     .join('\n');
 
@@ -299,7 +304,8 @@ QUALITY CHECKS:
 
   const openaiResponse = await openai.chat.completions.create({
     model: config.openai.model,
-    max_tokens: 2048,
+    max_tokens: 512,
+    temperature: 0.3,       // Lower temperature = more focused, faster responses
     messages: messages,
   });
 
