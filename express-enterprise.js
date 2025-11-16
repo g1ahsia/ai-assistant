@@ -506,6 +506,7 @@ app.post('/api/auth/google', async (req, res) => {
         name: user.name,
         avatarUrl: user.avatar_url,
         currentOrgId: user.current_org_id,
+        currentSpaceId: user.current_space_id,
       },
     });
   } catch (error) {
@@ -662,6 +663,7 @@ app.post('/api/auth/login', async (req, res) => {
         name: user.name,
         avatarUrl: user.avatar_url,
         currentOrgId: user.current_org_id,
+        currentSpaceId: user.current_space_id,
       },
     });
   } catch (error) {
@@ -707,6 +709,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
         name: user.name,
         avatarUrl: user.avatar_url,
         currentOrgId: user.current_org_id,
+        currentSpaceId: user.current_space_id,
         createdAt: user.created_at,
         organizations: orgs.map(org => ({
           orgId: org.org_id,
@@ -730,48 +733,84 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 app.put('/api/users/me', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.user;
-    const { currentOrgId } = req.body;
+    const { currentOrgId, currentSpaceId } = req.body;
 
-    if (!currentOrgId) {
-      return res.status(400).json({ error: 'currentOrgId is required' });
+    console.log('update user me request: ', req.body);
+
+    if (!currentOrgId && !currentSpaceId) {
+      return res.status(400).json({ error: 'currentOrgId or currentSpaceId is required' });
     }
 
-    // Verify user is a member of the target organization
-    const [membership] = await pool.query(
-      'SELECT role FROM org_members WHERE org_id = ? AND user_id = ?',
-      [currentOrgId, userId]
-    );
+    const updateFields = [];
+    const updateValues = [];
+    const responsePayload = { success: true };
 
-    if (membership.length === 0) {
-      return res.status(403).json({ error: 'You are not a member of this organization' });
+    if (currentOrgId) {
+      // Verify membership
+      const [membership] = await pool.query(
+        'SELECT role FROM org_members WHERE org_id = ? AND user_id = ?',
+        [currentOrgId, userId]
+      );
+
+      if (membership.length === 0) {
+        return res.status(403).json({ error: 'You are not a member of this organization' });
+      }
+
+      // Update payload
+      updateFields.push('current_org_id = ?');
+      updateValues.push(currentOrgId);
+
+      const [orgs] = await pool.query(
+        'SELECT org_id, name, namespace, plan FROM orgs WHERE org_id = ?',
+        [currentOrgId]
+      );
+
+      if (orgs.length === 0) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+
+      const org = orgs[0];
+      responsePayload.currentOrgId = org.org_id;
+      responsePayload.organizationName = org.name;
+      responsePayload.namespace = org.namespace;
+      responsePayload.plan = org.plan;
+      responsePayload.orgRole = membership[0].role;
     }
 
-    // Update user's current organization
+    if (currentSpaceId) {
+      const [spaceMembership] = await pool.query(
+        `SELECT s.space_id, s.org_id, sm.role
+         FROM spaces s
+         INNER JOIN space_members sm ON sm.space_id = s.space_id
+         WHERE s.space_id = ? AND sm.user_id = ?`,
+        [currentSpaceId, userId]
+      );
+
+      if (spaceMembership.length === 0) {
+        return res.status(403).json({ error: 'You are not a member of this space' });
+      }
+
+      const membership = spaceMembership[0];
+
+      updateFields.push('current_space_id = ?');
+      updateValues.push(currentSpaceId);
+
+      responsePayload.currentSpaceId = membership.space_id;
+      responsePayload.spaceOrgId = membership.org_id;
+      responsePayload.spaceRole = membership.role;
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    updateValues.push(userId);
     await pool.query(
-      'UPDATE users SET current_org_id = ? WHERE user_id = ?',
-      [currentOrgId, userId]
+      `UPDATE users SET ${updateFields.join(', ')}, updated_at = NOW() WHERE user_id = ?`,
+      updateValues
     );
 
-    // Get organization details
-    const [orgs] = await pool.query(
-      'SELECT org_id, name, namespace, plan FROM orgs WHERE org_id = ?',
-      [currentOrgId]
-    );
-
-    if (orgs.length === 0) {
-      return res.status(404).json({ error: 'Organization not found' });
-    }
-
-    const org = orgs[0];
-
-    res.json({
-      success: true,
-      currentOrgId: org.org_id,
-      organizationName: org.name,
-      namespace: org.namespace,
-      plan: org.plan,
-      role: membership[0].role,
-    });
+    res.json(responsePayload);
   } catch (error) {
     console.error('Update user error:', error);
     res.status(500).json({ error: 'Failed to update user' });
@@ -1672,6 +1711,63 @@ app.get('/api/spaces/:spaceId', authenticateToken, async (req, res) => {
 });
 
 /**
+ * PUT /api/spaces/:spaceId
+ * Update space details (owner only). Currently supports: description
+ */
+app.put('/api/spaces/:spaceId', authenticateToken, async (req, res) => {
+  const { spaceId } = req.params;
+  const { userId } = req.user;
+  const { description, name, visibility } = req.body || {};
+
+  try {
+    // Verify requester is owner of the space
+    const [ownerRows] = await pool.query(
+      `SELECT sm.role 
+       FROM space_members sm 
+       WHERE sm.space_id = ? AND sm.user_id = ? 
+       LIMIT 1`,
+      [spaceId, userId]
+    );
+
+    if (ownerRows.length === 0 || ownerRows[0].role !== 'owner') {
+      return res.status(403).json({ error: 'Only space owners can update space settings' });
+    }
+
+    // Build update fields
+    const updates = [];
+    const values = [];
+
+    if (typeof description === 'string') {
+      updates.push('description = ?');
+      values.push(description);
+    }
+    if (typeof name === 'string' && name.trim() !== '') {
+      updates.push('name = ?');
+      values.push(name.trim());
+    }
+    if (typeof visibility === 'string' && ['private', 'shared'].includes(visibility)) {
+      updates.push('visibility = ?');
+      values.push(visibility);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    values.push(spaceId);
+    await pool.query(
+      `UPDATE spaces SET ${updates.join(', ')}, updated_at = NOW() WHERE space_id = ?`,
+      values
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating space:', error);
+    res.status(500).json({ error: 'Failed to update space' });
+  }
+});
+
+/**
  * GET /api/spaces/:spaceId/files
  * Get files in space
  */
@@ -1792,6 +1888,130 @@ app.get('/api/spaces/:spaceId/members', authenticateToken, async (req, res) => {
 });
 
 /**
+ * PUT /api/spaces/:spaceId/members/:userId
+ * Update member role (owners only)
+ */
+app.put('/api/spaces/:spaceId/members/:userId', authenticateToken, async (req, res) => {
+  const { spaceId, userId: targetUserId } = req.params;
+  const { userId: requesterId } = req.user;
+  const { role } = req.body || {};
+
+  const validRoles = ['owner', 'contributor', 'viewer'];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role specified' });
+  }
+
+  try {
+    // Verify requester is member and owner of the space
+    const [requesterRows] = await pool.query(
+      `SELECT sm.role, s.space_type
+       FROM space_members sm
+       INNER JOIN spaces s ON s.space_id = sm.space_id
+       WHERE sm.space_id = ? AND sm.user_id = ?`,
+      [spaceId, requesterId]
+    );
+    if (requesterRows.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
+    }
+    if (requesterRows[0].space_type === 'personal') {
+      return res.status(400).json({ error: 'Cannot add members to a personal space' });
+    }
+    if (requesterRows[0].role !== 'owner') {
+      return res.status(403).json({ error: 'Only space owners can update member roles' });
+    }
+
+    // Verify target user is in space
+    const [targetRows] = await pool.query(
+      `SELECT role FROM space_members WHERE space_id = ? AND user_id = ?`,
+      [spaceId, targetUserId]
+    );
+    if (targetRows.length === 0) {
+      return res.status(404).json({ error: 'Target user is not a member of this space' });
+    }
+
+    // Prevent demoting last owner
+    if (targetRows[0].role === 'owner' && role !== 'owner') {
+      const [ownerCount] = await pool.query(
+        `SELECT COUNT(*) as cnt FROM space_members WHERE space_id = ? AND role = 'owner'`,
+        [spaceId]
+      );
+      if (ownerCount[0].cnt <= 1) {
+        return res.status(400).json({ error: 'Cannot demote the last owner of the space' });
+      }
+    }
+
+    await pool.query(
+      `UPDATE space_members SET role = ? WHERE space_id = ? AND user_id = ?`,
+      [role, spaceId, targetUserId]
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating member role:', error);
+    res.status(500).json({ error: 'Failed to update member role' });
+  }
+});
+
+/**
+ * DELETE /api/spaces/:spaceId/members/:userId
+ * Remove member from space
+ * - Owners can remove any member (except preventing removing last owner)
+ * - Any member can remove themselves (leave space)
+ */
+app.delete('/api/spaces/:spaceId/members/:userId', authenticateToken, async (req, res) => {
+  const { spaceId, userId: targetUserId } = req.params;
+  const { userId: requesterId } = req.user;
+
+  try {
+    // Verify requester is member
+    const [requesterRows] = await pool.query(
+      `SELECT role FROM space_members WHERE space_id = ? AND user_id = ?`,
+      [spaceId, requesterId]
+    );
+    if (requesterRows.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this space' });
+    }
+    const requesterRole = requesterRows[0].role;
+
+    // Verify target membership
+    const [targetRows] = await pool.query(
+      `SELECT role FROM space_members WHERE space_id = ? AND user_id = ?`,
+      [spaceId, targetUserId]
+    );
+    if (targetRows.length === 0) {
+      return res.status(404).json({ error: 'Target user is not a member of this space' });
+    }
+
+    // Permission: self-remove OR owner removing someone
+    const isSelf = requesterId === targetUserId;
+    if (!isSelf && requesterRole !== 'owner') {
+      return res.status(403).json({ error: 'Only owners can remove other members' });
+    }
+
+    // Prevent removing last owner if target is owner
+    if (targetRows[0].role === 'owner') {
+      const [ownerCount] = await pool.query(
+        `SELECT COUNT(*) as cnt FROM space_members WHERE space_id = ? AND role = 'owner'`,
+        [spaceId]
+      );
+      if (ownerCount[0].cnt <= 1) {
+        return res.status(400).json({ error: 'Cannot remove the last owner of the space' });
+      }
+    }
+
+    await pool.query(
+      `DELETE FROM space_members WHERE space_id = ? AND user_id = ?`,
+      [spaceId, targetUserId]
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing space member:', error);
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+/**
  * POST /api/spaces/:spaceId/members
  * Add a member to a space (owners only)
  */
@@ -1813,7 +2033,7 @@ app.post('/api/spaces/:spaceId/members', authenticateToken, async (req, res) => 
   try {
     // Verify requester is owner of the space and get org_id
     const [spaceRows] = await pool.query(
-      `SELECT s.org_id, sm.role AS requester_role
+      `SELECT s.org_id, s.space_id, s.space_type, sm.role AS requester_role
        FROM spaces s
        INNER JOIN space_members sm 
          ON s.space_id = sm.space_id AND sm.user_id = ?
@@ -1827,6 +2047,11 @@ app.post('/api/spaces/:spaceId/members', authenticateToken, async (req, res) => 
 
     if (spaceRows[0].requester_role !== 'owner') {
       return res.status(403).json({ error: 'Only space owners can add members' });
+    }
+
+    // Disallow adding members to personal spaces
+    if (spaceRows[0].space_type === 'personal') {
+      return res.status(400).json({ error: 'Cannot add members to personal spaces' });
     }
 
     const orgId = spaceRows[0].org_id;
@@ -1876,6 +2101,82 @@ app.post('/api/spaces/:spaceId/members', authenticateToken, async (req, res) => 
     }
     console.error('Error adding space member:', error);
     res.status(500).json({ error: 'Failed to add member to space' });
+  }
+});
+
+/**
+ * DELETE /api/spaces/:spaceId/members/:memberId
+ * Remove a member from a space / leave space
+ */
+app.delete('/api/spaces/:spaceId/members/:memberId', authenticateToken, async (req, res) => {
+  const { spaceId, memberId } = req.params;
+  const { userId: requesterId } = req.user;
+
+  try {
+    // Verify requester is in space
+    const [requesterMembership] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, requesterId]
+    );
+
+    if (requesterMembership.length === 0) {
+      return res.status(403).json({ error: 'You are not a member of this space' });
+    }
+
+    const isSelfRemoval = requesterId === memberId;
+    const requesterRole = requesterMembership[0].role;
+
+    if (!isSelfRemoval && requesterRole !== 'owner') {
+      return res.status(403).json({ error: 'Only owners can remove other members' });
+    }
+
+    // Verify target membership
+    const [targetMembership] = await pool.query(
+      'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, memberId]
+    );
+
+    if (targetMembership.length === 0) {
+      return res.status(404).json({ error: 'Member not found in this space' });
+    }
+
+    const targetRole = targetMembership[0].role;
+
+    // Prevent removing the last owner
+    if (targetRole === 'owner') {
+      const [ownerCountRows] = await pool.query(
+        'SELECT COUNT(*) AS ownerCount FROM space_members WHERE space_id = ? AND role = "owner"',
+        [spaceId]
+      );
+
+      if (ownerCountRows[0].ownerCount <= 1) {
+        return res.status(400).json({ error: 'Cannot remove the last owner from the space' });
+      }
+    }
+
+    await pool.query(
+      'DELETE FROM space_members WHERE space_id = ? AND user_id = ?',
+      [spaceId, memberId]
+    );
+
+    // Log activity (only when removing someone else or owner leaving)
+    await pool.query(
+      `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+       VALUES (?, ?, 'member_removed', ?)`,
+      [
+        spaceId,
+        requesterId,
+        JSON.stringify({ removedUserId: memberId, initiatedBy: requesterId }),
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: isSelfRemoval ? 'Left space successfully' : 'Member removed successfully',
+    });
+  } catch (error) {
+    console.error('Error removing space member:', error);
+    res.status(500).json({ error: 'Failed to remove member from space' });
   }
 });
 
