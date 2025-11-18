@@ -60,7 +60,22 @@ export async function queryWithAuth(db, orgId, userId, query, options = {}) {
   });
 
   console.log(`Found ${queryResponse.matches.length} matches`);
-
+  
+  // Print matched documents
+  if (queryResponse.matches.length > 0) {
+    console.log('\n📄 Matched Documents:');
+    queryResponse.matches.forEach((match, idx) => {
+      const meta = match.metadata || {};
+      console.log(`  ${idx + 1}. ${match.id} (score: ${match.score.toFixed(4)})`);
+      console.log(`     - File: ${meta.filename || meta.title || 'Unknown'}`);
+      console.log(`     - Path: ${meta.filepath || 'Unknown'}`);
+      console.log(`     - Doc ID: ${meta.doc_id || 'Unknown'}`);
+      console.log(`     - Space: ${meta.space_ids || 'Unknown'}`);
+      console.log(`     - Type: ${meta.mime || meta.fileType || 'Unknown'}`);
+    });
+    console.log('');
+  }
+  
   // Filter by threshold
   const filteredMatches = queryResponse.matches.filter(
     match => match.score >= threshold

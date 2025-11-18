@@ -2188,6 +2188,15 @@ app.delete('/api/spaces/:spaceId/members/:memberId', authenticateToken, async (r
  * POST /api/orgs/:orgId/chat
  * Query organization documents and generate AI response
  * Optionally saves messages to chat if chatId is provided
+ * 
+ * Body params:
+ * - query: The user's question/query (required)
+ * - chatHistory: Array of previous messages (optional)
+ * - answerMode: 'precise' or 'creative' (optional, default: 'precise')
+ * - spaceIds: Array of space IDs to filter context (optional, falls back to current_space_id)
+ * - documentIds: Array of document IDs to filter context (optional)
+ * - additionalFilters: Additional metadata filters (optional)
+ * - chatId: Chat ID to save messages to (optional)
  */
 app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async (req, res) => {
   const { orgId } = req.params;
@@ -2197,6 +2206,7 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
     chatHistory = [],
     answerMode = 'precise',
     spaceIds = [],      // NEW: query specific spaces
+    documentIds = [],   // NEW: query specific documents
     additionalFilters = {},
     chatId = null,  // Optional chat ID to save messages
   } = req.body;
@@ -2217,32 +2227,129 @@ app.post('/api/orgs/:orgId/chat', authenticateToken, verifyOrgMembership, async 
     }
   }
 
-  // If spaceIds provided, filter by space_ids in Pinecone metadata
+  // Step 1: Validate and collect space IDs
+  let validatedSpaceIds = [];
   if (spaceIds && spaceIds.length > 0) {
-    try {
-      // Verify user has access to all specified spaces
-      const placeholders = spaceIds.map(() => '?').join(',');
-      const [spaces] = await pool.query(
-        `SELECT DISTINCT sm.space_id
-         FROM space_members sm
-         WHERE sm.space_id IN (${placeholders}) AND sm.user_id = ?`,
-        [...spaceIds, userId]
-      );
+    // Verify user has access to spaces
+    const placeholders = spaceIds.map(() => '?').join(',');
+    const [spaces] = await pool.query(
+      `SELECT DISTINCT sm.space_id
+       FROM space_members sm
+       WHERE sm.space_id IN (${placeholders}) AND sm.user_id = ?`,
+      [...spaceIds, userId]
+    );
 
-      if (spaces.length !== spaceIds.length) {
-        return res.status(403).json({ error: 'No access to one or more specified spaces' });
+    if (spaces.length !== spaceIds.length) {
+      return res.status(403).json({ error: 'No access to one or more specified spaces' });
+    }
+
+    validatedSpaceIds = spaceIds;
+  } else {
+    // Fallback to user.current_space_id if no spaceIds provided
+    const [u] = await pool.query('SELECT current_space_id FROM users WHERE user_id = ? LIMIT 1', [userId]);
+    const currentSpaceId = u && u[0] && u[0].current_space_id;
+    if (currentSpaceId) {
+      // Verify user has access to their current space
+      const [spaces] = await pool.query(
+        `SELECT space_id FROM space_members WHERE space_id = ? AND user_id = ? LIMIT 1`,
+        [currentSpaceId, userId]
+      );
+      if (spaces.length > 0) {
+        validatedSpaceIds = [currentSpaceId];
+      } else {
+        return res.status(400).json({ error: 'spaceIds are required to scope chat queries' });
+      }
+    } else {
+      return res.status(400).json({ error: 'spaceIds are required to scope chat queries' });
+    }
+  }
+
+  // Step 2: Validate and collect document IDs (if provided)
+  let validatedDocumentIds = [];
+  if (documentIds && documentIds.length > 0) {
+    try {
+      // Resolve requested documents: prefer body.documentIds; else allow additionalFilters.doc_id
+      let requestedDocuments = Array.isArray(documentIds) ? [...documentIds] : [];
+      if (!requestedDocuments.length && Object.prototype.hasOwnProperty.call(additionalFilters, 'doc_id')) {
+        const raw = additionalFilters.doc_id;
+        if (Array.isArray(raw)) {
+          requestedDocuments = raw.filter(Boolean);
+        } else if (typeof raw === 'string' && raw.trim()) {
+          requestedDocuments = [raw.trim()];
+        } else if (raw && Array.isArray(raw.$in)) {
+          requestedDocuments = raw.$in.filter(Boolean);
+        }
       }
 
-      // Add space_ids filter for Pinecone
-      if (spaceIds.length === 1) {
-        sanitizedFilters.space_ids = spaceIds[0];
-      } else {
-        sanitizedFilters.space_ids = { $in: spaceIds };
+      if (requestedDocuments.length > 0) {
+        // For OR logic: Verify documents belong to ANY space the user has access to
+        // First, get ALL spaces the user has access to (not just the specified ones)
+        const [userSpaces] = await pool.query(
+          `SELECT DISTINCT space_id FROM space_members WHERE user_id = ?`,
+          [userId]
+        );
+        const allUserSpaceIds = userSpaces.map(s => s.space_id);
+        
+        if (allUserSpaceIds.length === 0) {
+          return res.status(403).json({ error: 'User has no accessible spaces' });
+        }
+
+        // Verify that all requested documents belong to spaces the user has access to
+        const docPlaceholders = requestedDocuments.map(() => '?').join(',');
+        const spacePlaceholders = allUserSpaceIds.map(() => '?').join(',');
+        
+        const [allowedDocs] = await pool.query(
+          `SELECT DISTINCT doc_id FROM space_files 
+           WHERE doc_id IN (${docPlaceholders}) 
+           AND space_id IN (${spacePlaceholders})`,
+          [...requestedDocuments, ...allUserSpaceIds]
+        );
+
+        const allowedDocIds = new Set(allowedDocs.map(r => r.doc_id));
+        const unauthorizedDocs = requestedDocuments.filter(id => !allowedDocIds.has(id));
+        
+        if (unauthorizedDocs.length > 0) {
+          return res.status(403).json({ 
+            error: 'No access to one or more specified documents', 
+            details: { unauthorized: unauthorizedDocs } 
+          });
+        }
+
+        validatedDocumentIds = requestedDocuments;
+        console.log(`✅ Document filter validated: ${requestedDocuments.length} document(s)`);
       }
     } catch (error) {
-      console.error('Error filtering by spaces:', error);
-      return res.status(500).json({ error: 'Failed to filter by spaces' });
+      console.error('Error filtering by documents:', error);
+      return res.status(500).json({ error: 'Failed to filter by documents' });
     }
+  }
+
+  // Step 3: Build Pinecone filter with OR logic when both spaces and documents are provided
+  if (validatedDocumentIds.length > 0 && validatedSpaceIds.length > 0) {
+    // Both spaces and documents provided - use OR logic
+    const spaceFilter = validatedSpaceIds.length === 1 
+      ? { space_ids: validatedSpaceIds[0] }
+      : { space_ids: { $in: validatedSpaceIds } };
+    
+    const docFilter = validatedDocumentIds.length === 1
+      ? { doc_id: validatedDocumentIds[0] }
+      : { doc_id: { $in: validatedDocumentIds } };
+
+    // Create OR filter: match documents in specified spaces OR specific document IDs
+    sanitizedFilters.$or = [spaceFilter, docFilter];
+    console.log(`✅ OR filter applied: ${validatedSpaceIds.length} space(s) OR ${validatedDocumentIds.length} document(s)`);
+  } else if (validatedDocumentIds.length > 0) {
+    // Only documents provided
+    sanitizedFilters.doc_id = validatedDocumentIds.length === 1 
+      ? validatedDocumentIds[0] 
+      : { $in: validatedDocumentIds };
+    console.log(`✅ Document-only filter applied: ${validatedDocumentIds.length} document(s)`);
+  } else {
+    // Only spaces provided (always true due to fallback to current_space_id)
+    sanitizedFilters.space_ids = validatedSpaceIds.length === 1
+      ? validatedSpaceIds[0]
+      : { $in: validatedSpaceIds };
+    console.log(`✅ Space-only filter applied: ${validatedSpaceIds.length} space(s)`);
   }
 
   try {
@@ -2607,13 +2714,14 @@ app.post('/api/spaces/:spaceId/upload', authenticateToken, async (req, res) => {
  * Called when adding/removing files from spaces
  */
 async function updateDocumentSpaceIds(orgId, docId, spaceId, action = 'add') {
+  console.log('updateDocumentSpaceIds: ', orgId, docId, spaceId, action);
   try {
     const pc = new (await import('@pinecone-database/pinecone')).Pinecone({ 
       apiKey: config.pinecone.apiKey 
     });
     const indexName = config.pinecone.indexName;
     const index = pc.index(indexName);
-    const namespace = `org_${orgId}`;
+    const namespace = config.pinecone.namespaces.org(orgId);
 
     // Get document metadata to find chunk count
     const [docs] = await pool.query(
@@ -2694,6 +2802,8 @@ app.post('/api/spaces/:spaceId/files', authenticateToken, async (req, res) => {
   }
 
   try {
+    console.log(`\n🧩 [Share] Starting share sequence for ${docIds.length} file(s) into space ${spaceId}`);
+
     // Verify user has contributor or owner role in space
     const [members] = await pool.query(
       'SELECT role FROM space_members WHERE space_id = ? AND user_id = ?',
@@ -2739,6 +2849,8 @@ app.post('/api/spaces/:spaceId/files', authenticateToken, async (req, res) => {
 
     for (const doc of docs) {
       try {
+        console.log(`➡️  [Share] Processing doc ${doc.doc_id} (${doc.filename}) for space ${spaceId}`);
+
         // Check if already in space
         const [existing] = await pool.query(
           'SELECT 1 FROM space_files WHERE space_id = ? AND doc_id = ?',
@@ -2746,34 +2858,46 @@ app.post('/api/spaces/:spaceId/files', authenticateToken, async (req, res) => {
         );
 
         if (existing.length > 0) {
+          console.log(`ℹ️  [Share] Doc ${doc.doc_id} already in space ${spaceId} — skipping insert`);
           results.push({ doc_id: doc.doc_id, status: 'already_exists' });
           continue;
         }
 
-        // Add to space_files table
+        // STEP 1: add to space_files table
+        console.log('➡️  [Share] Step 1/2: inserting into space_files');
         await pool.query(
           `INSERT INTO space_files (space_id, doc_id, added_by, notes, tags)
            VALUES (?, ?, ?, ?, ?)`,
-          [spaceId, doc.doc_id, userId, notes || null, JSON.stringify(tags)]
+          [spaceId, doc.doc_id, userId, (notes || null), JSON.stringify(tags)]
         );
+        console.log('✅ [Share] Step 1 complete: record inserted into space_files');
 
-        // Update Pinecone metadata to add this space to space_ids
-        await updateDocumentSpaceIds(orgId, doc.doc_id, spaceId, 'add');
+        // STEP 2: update Pinecone metadata to add this space to space_ids
+        console.log('🔄 [Share] Step 2/2: updating vector metadata (space_ids) in Pinecone');
+        const metaUpdate = await updateDocumentSpaceIds(orgId, doc.doc_id, spaceId, 'add');
+        console.log(`✅ [Share] Step 2 complete: ${metaUpdate?.updatedCount ?? 0} vector(s) updated for doc ${doc.doc_id}`);
 
-        // Log activity
-        await pool.query(
-          `INSERT INTO space_activity (space_id, user_id, activity_type, details)
-           VALUES (?, ?, 'file_added', ?)`,
-          [spaceId, userId, JSON.stringify({ doc_id: doc.doc_id, filename: doc.filename })]
-        );
+        // Log activity (non‑critical)
+        try {
+          await pool.query(
+            `INSERT INTO space_activity (space_id, user_id, activity_type, details)
+             VALUES (?, ?, 'file_added', ?)` ,
+            [spaceId, userId, JSON.stringify({ doc_id: doc.doc_id, filename: doc.filename })]
+          );
+          console.log('📝 [Share] activity logged: file_added');
+        } catch (activityError) {
+          console.warn('⚠️ [Share] could not log file_added activity (non‑critical):', activityError.message);
+        }
 
         addedCount++;
-        results.push({ doc_id: doc.doc_id, status: 'added' });
+        results.push({ doc_id: doc.doc_id, status: 'added', vectorsUpdated: metaUpdate?.updatedCount ?? 0 });
       } catch (error) {
-        console.error(`Error adding doc ${doc.doc_id} to space:`, error);
+        console.error(`❌ [Share] error adding doc ${doc.doc_id} to space ${spaceId}:`, error);
         results.push({ doc_id: doc.doc_id, status: 'error', error: error.message });
       }
     }
+
+    console.log(`🎉 [Share] completed: added ${addedCount}/${docs.length} file(s) to space ${spaceId}`);
 
     res.json({
       success: true,
