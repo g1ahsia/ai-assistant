@@ -100,22 +100,28 @@ Access control is managed server-side via space membership:
 
 ### Spaces Collaboration Flow
 
-1. **User creates space**
+1. **User signs up**
+   - Creates user account with email/password or Google OAuth
+   - Automatically creates personal organization (`{name}'s Organization`)
+   - **Automatically creates default "Personal" space** for immediate file uploads
+   - User is owner of both organization and personal space
+
+2. **User creates additional spaces** (optional)
    - Creates space record with owner role
    - Personal or team space type
    - Automatic space_members entry for owner
 
-2. **Add members to space**
+3. **Add members to space**
    - Owner invites users with roles (owner/contributor/viewer)
    - Creates space_members records
    - Activity logged in space_activity
 
-3. **Upload documents to space**
-   - Documents uploaded directly to space
+4. **Upload documents to space**
+   - Documents uploaded directly to space (including default "Personal" space)
    - Creates document record and space_files association
    - Only contributors and owners can upload
 
-4. **Query AI in space context**
+5. **Query AI in space context**
    - User specifies which space(s) to query
    - Server validates space access
    - Filters to only documents in those spaces

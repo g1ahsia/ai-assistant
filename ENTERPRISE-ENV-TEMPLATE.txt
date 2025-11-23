@@ -24,6 +24,11 @@ JWT_SECRET=your_jwt_secret_key_here
 JWT_EXPIRY=7d
 GOOGLE_CLIENT_ID=your_google_oauth_client_id_here
 
+# Gmail Configuration (for invitations) - Using SSL port 465
+GMAIL_USER=support@bhavana.life
+GMAIL_APP_PASSWORD=your-gmail-app-password-here
+EMAIL_FROM=Panlo <noreply@panlo.ai>
+
 # API Server Configuration
 PORT=3000
 HOST=localhost

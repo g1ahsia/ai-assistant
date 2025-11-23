@@ -16,6 +16,7 @@ import config from './config-enterprise.js';
 import authService from './authService.js';
 import chatbotClient from './chatbotClient-enterprise.js';
 import { generateSummary } from './chatbotClient.js';
+import { sendInvitationEmail, sendWelcomeEmail } from './emailService.js';
 
 // Google OAuth client
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -33,7 +34,7 @@ app.use(express.static('.', {
   index: false // Don't auto-serve index.html
 }));
 
-// Serve public folder for invitation pages and assets
+// Serve public directory for invitation pages and assets
 app.use('/public', express.static('public'));
 
 // Database connection pool
@@ -42,26 +43,6 @@ const pool = mysql.createPool(config.database);
 // ============================================
 // Organization Invitation System Configuration
 // ============================================
-
-/**
- * Email transporter configuration
- * Configure based on your email service provider
- * Lazy initialization to avoid startup errors
- */
-let emailTransporter = null;
-
-function getEmailTransporter() {
-  if (!emailTransporter) {
-    emailTransporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-      }
-    });
-  }
-  return emailTransporter;
-}
 
 /**
  * Rate limiting configuration for invitations
@@ -223,107 +204,6 @@ async function checkInvitationRateLimits(orgId, email) {
 }
 
 /**
- * Send invitation email to invitee
- */
-async function sendInvitationEmail(invitation, org, inviter) {
-  const invitationLink = `${process.env.APP_URL || 'http://localhost:3000'}/accept-invitation/${invitation.invitation_token}`;
-  
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 8px; }
-        .content { padding: 30px 0; }
-        .button { 
-          display: inline-block; 
-          background-color: #007AFF; 
-          color: white; 
-          padding: 12px 30px; 
-          text-decoration: none; 
-          border-radius: 6px;
-          font-weight: 600;
-        }
-        .footer { color: #8e8e93; font-size: 12px; padding-top: 20px; border-top: 1px solid #e0e0e0; }
-        .message { background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0; font-style: italic; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h2>You're invited to join ${org.name} on Panlo</h2>
-        </div>
-        
-        <div class="content">
-          <p>Hi,</p>
-          
-          <p><strong>${inviter.name || inviter.email}</strong> has invited you to join <strong>${org.name}</strong> on Panlo as a <strong>${invitation.role}</strong>.</p>
-          
-          ${invitation.message ? `
-            <div class="message">
-              "${invitation.message}"
-            </div>
-          ` : ''}
-          
-          <p style="text-align: center; margin: 30px 0;">
-            <a href="${invitationLink}" class="button">Accept Invitation</a>
-          </p>
-          
-          <p style="color: #8e8e93; font-size: 14px;">
-            Or copy and paste this link into your browser:<br>
-            <a href="${invitationLink}">${invitationLink}</a>
-          </p>
-          
-          <p style="color: #8e8e93; font-size: 14px;">
-            This invitation will expire in ${INVITATION_CONFIG.EXPIRATION_DAYS} days.
-          </p>
-        </div>
-        
-        <div class="footer">
-          <p>Panlo - Your AI Assistant<br>
-          This email was sent to ${invitation.invitee_email}</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-  
-  const emailText = `
-You're invited to join ${org.name} on Panlo
-
-${inviter.name || inviter.email} has invited you to join ${org.name} on Panlo as a ${invitation.role}.
-
-${invitation.message ? `Message: "${invitation.message}"` : ''}
-
-Accept invitation: ${invitationLink}
-
-This invitation will expire in ${INVITATION_CONFIG.EXPIRATION_DAYS} days.
-
----
-Panlo - Your AI Assistant
-This email was sent to ${invitation.invitee_email}
-  `;
-  
-  try {
-    const transporter = getEmailTransporter();
-    await transporter.sendMail({
-      from: `"Panlo" <${process.env.EMAIL_FROM || 'noreply@panlo.com'}>`,
-      to: invitation.invitee_email,
-      subject: `You're invited to join ${org.name} on Panlo`,
-      text: emailText,
-      html: emailHtml
-    });
-    
-    console.log(`✅ Invitation email sent to ${invitation.invitee_email}`);
-  } catch (error) {
-    console.error('❌ Error sending invitation email:', error);
-    // Don't throw - invitation created successfully even if email fails
-  }
-}
-
-/**
  * Log invitation activity
  */
 async function logInvitationActivity(invitationId, activityType, userId, details, req) {
@@ -472,6 +352,30 @@ app.post('/api/auth/google', async (req, res) => {
         [orgId, userId]
       );
 
+      // Create default "Personal" space for the user
+      const spaceId = `space_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await pool.query(
+        `INSERT INTO spaces (space_id, org_id, name, description, space_type, visibility, owner_user_id, settings)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          spaceId,
+          orgId,
+          'Personal',
+          'Your personal document space',
+          'personal',
+          'private',
+          userId,
+          JSON.stringify({ isDefault: true })
+        ]
+      );
+
+      // Add user as owner in space_members
+      await pool.query(
+        `INSERT INTO space_members (space_id, user_id, role, added_by)
+         VALUES (?, ?, ?, ?)`,
+        [spaceId, userId, 'owner', userId]
+      );
+
       user = {
         user_id: userId,
         email,
@@ -583,6 +487,30 @@ app.post('/api/auth/signup', async (req, res) => {
       [orgId, userId]
     );
 
+    // Create default "Personal" space for the user
+    const spaceId = `space_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await pool.query(
+      `INSERT INTO spaces (space_id, org_id, name, description, space_type, visibility, owner_user_id, settings)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        spaceId,
+        orgId,
+        'Personal',
+        'Your personal document space',
+        'personal',
+        'private',
+        userId,
+        JSON.stringify({ isDefault: true })
+      ]
+    );
+
+    // Add user as owner in space_members
+    await pool.query(
+      `INSERT INTO space_members (space_id, user_id, role, added_by)
+       VALUES (?, ?, ?, ?)`,
+      [spaceId, userId, 'owner', userId]
+    );
+
     const user = {
       user_id: userId,
       email,
@@ -602,6 +530,11 @@ app.post('/api/auth/signup', async (req, res) => {
         name: user.name,
         currentOrgId: user.current_org_id,
       },
+      defaultSpace: {
+        spaceId,
+        name: 'Personal',
+        type: 'personal'
+      }
     });
   } catch (error) {
     console.error('Signup error:', error);
@@ -981,6 +914,743 @@ app.post('/api/orgs/:orgId/members', authenticateToken, verifyOrgMembership, req
     }
     console.error('Error adding member:', error);
     res.status(500).json({ error: 'Failed to add member' });
+  }
+});
+
+/**
+ * PUT /api/orgs/:orgId/members/:userId
+ * Update a member's role in organization
+ */
+app.put('/api/orgs/:orgId/members/:userId', authenticateToken, verifyOrgMembership, requireOrgAdmin, async (req, res) => {
+  const { orgId, userId: targetUserId } = req.params;
+  const { role } = req.body;
+  const { userId: requesterId } = req.user;
+
+  if (!role) {
+    return res.status(400).json({ error: 'Role is required' });
+  }
+
+  // Validate role
+  const validRoles = ['member', 'admin', 'owner'];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be: member, admin, or owner' });
+  }
+
+  try {
+    // Check if target user is a member
+    const [members] = await pool.query(
+      'SELECT role FROM org_members WHERE org_id = ? AND user_id = ?',
+      [orgId, targetUserId]
+    );
+
+    if (members.length === 0) {
+      return res.status(404).json({ error: 'User is not a member of this organization' });
+    }
+
+    const currentRole = members[0].role;
+
+    // Prevent changing your own role if you're the only owner
+    if (requesterId === targetUserId && currentRole === 'owner') {
+      const [owners] = await pool.query(
+        'SELECT COUNT(*) as count FROM org_members WHERE org_id = ? AND role = ?',
+        [orgId, 'owner']
+      );
+
+      if (owners[0].count === 1) {
+        return res.status(400).json({ 
+          error: 'Cannot change your own role. You are the only owner of this organization.' 
+        });
+      }
+    }
+
+    // Update role
+    await pool.query(
+      'UPDATE org_members SET role = ? WHERE org_id = ? AND user_id = ?',
+      [role, orgId, targetUserId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Member role updated successfully',
+      member: {
+        userId: targetUserId,
+        orgId,
+        role,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating member role:', error);
+    res.status(500).json({ error: 'Failed to update member role' });
+  }
+});
+
+/**
+ * DELETE /api/orgs/:orgId/members/:userId
+ * Remove a member from organization
+ */
+app.delete('/api/orgs/:orgId/members/:userId', authenticateToken, verifyOrgMembership, requireOrgAdmin, async (req, res) => {
+  const { orgId, userId: targetUserId } = req.params;
+  const { userId: requesterId } = req.user;
+
+  try {
+    // Check if target user is a member
+    const [members] = await pool.query(
+      'SELECT role FROM org_members WHERE org_id = ? AND user_id = ?',
+      [orgId, targetUserId]
+    );
+
+    if (members.length === 0) {
+      return res.status(404).json({ error: 'User is not a member of this organization' });
+    }
+
+    const memberRole = members[0].role;
+
+    // Prevent removing yourself if you're the only owner
+    if (requesterId === targetUserId && memberRole === 'owner') {
+      const [owners] = await pool.query(
+        'SELECT COUNT(*) as count FROM org_members WHERE org_id = ? AND role = ?',
+        [orgId, 'owner']
+      );
+
+      if (owners[0].count === 1) {
+        return res.status(400).json({ 
+          error: 'Cannot remove yourself. You are the only owner of this organization.' 
+        });
+      }
+    }
+
+    // Remove member
+    await pool.query(
+      'DELETE FROM org_members WHERE org_id = ? AND user_id = ?',
+      [orgId, targetUserId]
+    );
+
+    // Also remove from all teams in this org
+    await pool.query(
+      `DELETE tm FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.team_id 
+       WHERE t.org_id = ? AND tm.user_id = ?`,
+      [orgId, targetUserId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Member removed successfully',
+    });
+  } catch (error) {
+    console.error('Error removing member:', error);
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+/**
+ * POST /api/orgs/:orgId/invitations
+ * Send email invitation to join organization
+ */
+app.post('/api/orgs/:orgId/invitations', authenticateToken, verifyOrgMembership, requireOrgAdmin, async (req, res) => {
+  const { orgId } = req.params;
+  const { email, role = 'member' } = req.body;
+  const { userId: inviterId } = req.user;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  try {
+    // Get organization details
+    const [orgs] = await pool.query('SELECT name FROM orgs WHERE org_id = ?', [orgId]);
+    if (orgs.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    const orgName = orgs[0].name;
+
+    // Get inviter details
+    const [inviters] = await pool.query('SELECT name FROM users WHERE user_id = ?', [inviterId]);
+    if (inviters.length === 0) {
+      return res.status(404).json({ error: 'Inviter not found' });
+    }
+    const inviterName = inviters[0].name;
+
+    // Check if user with this email already exists
+    const [existingUsers] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email]);
+    
+    let inviteToken;
+    let inviteLink;
+
+    if (existingUsers.length > 0) {
+      // User exists - check if already a member
+      const existingUserId = existingUsers[0].user_id;
+      const [members] = await pool.query(
+        'SELECT user_id FROM org_members WHERE org_id = ? AND user_id = ?',
+        [orgId, existingUserId]
+      );
+
+      if (members.length > 0) {
+        return res.status(400).json({ error: 'User is already a member of this organization' });
+      }
+
+      // Create invitation token for existing user
+      inviteToken = jwt.sign(
+        { email, orgId, role, inviterId, existingUser: true },
+        config.auth.jwtSecret,
+        { expiresIn: '7d' }
+      );
+    } else {
+      // New user - invitation will create account
+      inviteToken = jwt.sign(
+        { email, orgId, role, inviterId, existingUser: false },
+        config.auth.jwtSecret,
+        { expiresIn: '7d' }
+      );
+    }
+
+    // Generate invitation link
+    const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+    inviteLink = `${baseUrl}/accept-invitation?token=${inviteToken}`;
+
+    // Send invitation email
+    await sendInvitationEmail({
+      to: email,
+      inviterName,
+      orgName,
+      inviteLink,
+      role,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Invitation sent successfully',
+      invitation: {
+        email,
+        orgId,
+        role,
+        invitedBy: inviterName,
+      },
+    });
+  } catch (error) {
+    console.error('Error sending invitation:', error);
+    
+    // Check if it's an email error
+    if (error.message && error.message.includes('nodemailer')) {
+      return res.status(500).json({ 
+        error: 'Failed to send invitation email',
+        details: 'Please check email configuration' 
+      });
+    }
+    
+    res.status(500).json({ error: 'Failed to send invitation' });
+  }
+});
+
+/**
+ * GET /api/orgs/:orgId/invitations
+ * List all invitations for an organization (Admin only)
+ */
+app.get('/api/orgs/:orgId/invitations', authenticateToken, verifyOrgMembership, requireOrgAdmin, async (req, res) => {
+  const { orgId } = req.params;
+  const inviterId = req.user.userId;
+  const { status, limit = 50, offset = 0 } = req.query;
+  
+  try {
+    // Build query
+    let query = `
+      SELECT 
+        i.*,
+        u.name as inviter_name,
+        u.email as inviter_email
+      FROM org_invitations i
+      JOIN users u ON i.inviter_id = u.user_id
+      WHERE i.org_id = ?
+    `;
+    
+    const params = [orgId];
+    
+    if (status) {
+      query += ' AND i.status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY i.created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), parseInt(offset));
+    
+    // Get invitations
+    const [invitations] = await pool.query(query, params);
+    
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) as total FROM org_invitations WHERE org_id = ?';
+    const countParams = [orgId];
+    
+    if (status) {
+      countQuery += ' AND status = ?';
+      countParams.push(status);
+    }
+    
+    const [countResult] = await pool.query(countQuery, countParams);
+    
+    // Return invitations
+    res.json({
+      success: true,
+      invitations: invitations.map(inv => ({
+        invitationId: inv.invitation_id,
+        orgId: inv.org_id,
+        email: inv.invitee_email,
+        role: inv.role,
+        status: inv.status,
+        message: inv.message,
+        inviterName: inv.inviter_name,
+        inviterEmail: inv.inviter_email,
+        inviterId: inv.inviter_id,
+        token: inv.invitation_token,
+        createdAt: inv.created_at,
+        expiresAt: inv.expires_at,
+        acceptedAt: inv.accepted_at,
+        declinedAt: inv.declined_at,
+        revokedAt: inv.revoked_at
+      })),
+      pagination: {
+        total: countResult[0].total,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error listing invitations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to list invitations'
+    });
+  }
+});
+
+/**
+ * POST /api/accept-invitation
+ * Accept organization invitation and join
+ */
+app.post('/api/accept-invitation', async (req, res) => {
+  const { token, name, password } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ error: 'Invitation token is required' });
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, config.auth.jwtSecret);
+    const { email, orgId, role, inviterId, existingUser } = decoded;
+
+    let userId;
+    let userToken;
+
+    if (existingUser) {
+      // Existing user - just add to org
+      const [users] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email]);
+      if (users.length === 0) {
+        return res.status(404).json({ error: 'User account not found' });
+      }
+      userId = users[0].user_id;
+
+      // Add to organization
+      await pool.query(
+        'INSERT INTO org_members (org_id, user_id, role, invited_by) VALUES (?, ?, ?, ?)',
+        [orgId, userId, role, inviterId]
+      );
+
+      // Generate auth token
+      const [user] = await pool.query('SELECT * FROM users WHERE user_id = ?', [userId]);
+      userToken = generateToken(user[0]);
+
+    } else {
+      // New user - create account and add to org
+      if (!name || !password) {
+        return res.status(400).json({ 
+          error: 'Name and password are required for new accounts' 
+        });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create user
+      userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await pool.query(
+        `INSERT INTO users (user_id, email, name, preferences)
+         VALUES (?, ?, ?, ?)`,
+        [userId, email, name, JSON.stringify({ password: hashedPassword })]
+      );
+
+      // Add to invited organization
+      await pool.query(
+        'INSERT INTO org_members (org_id, user_id, role, invited_by) VALUES (?, ?, ?, ?)',
+        [orgId, userId, role, inviterId]
+      );
+
+      // Set current org
+      await pool.query(
+        'UPDATE users SET current_org_id = ? WHERE user_id = ?',
+        [orgId, userId]
+      );
+
+      // Generate auth token
+      const user = { user_id: userId, email, name, current_org_id: orgId };
+      userToken = generateToken(user);
+
+      // Send welcome email (optional)
+      try {
+        const [orgs] = await pool.query('SELECT name FROM orgs WHERE org_id = ?', [orgId]);
+        if (orgs.length > 0) {
+          await sendWelcomeEmail({ to: email, name, orgName: orgs[0].name });
+        }
+      } catch (emailError) {
+        console.warn('Failed to send welcome email:', emailError.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Successfully joined organization',
+      token: userToken,
+      user: {
+        userId,
+        email,
+        name,
+      },
+    });
+
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(400).json({ error: 'Invitation has expired' });
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(400).json({ error: 'Invalid invitation token' });
+    }
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Already a member of this organization' });
+    }
+    console.error('Error accepting invitation:', error);
+    res.status(500).json({ error: 'Failed to accept invitation' });
+  }
+});
+
+/**
+ * GET /api/invitations/:token
+ * Get invitation details by token (public endpoint)
+ */
+app.get('/api/invitations/:token', async (req, res) => {
+  const { token } = req.params;
+  
+  try {
+    // Get invitation with org and inviter details
+    const [invitations] = await pool.query(
+      `SELECT 
+        i.*,
+        o.name as org_name,
+        o.plan as org_plan,
+        u.name as inviter_name,
+        u.email as inviter_email,
+        u.avatar_url as inviter_avatar
+       FROM org_invitations i
+       JOIN orgs o ON i.org_id = o.org_id
+       JOIN users u ON i.inviter_id = u.user_id
+       WHERE i.invitation_token = ?`,
+      [token]
+    );
+    
+    if (invitations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+    
+    const invitation = invitations[0];
+    
+    // Check if invitation is still valid
+    if (invitation.status !== 'pending') {
+      return res.status(410).json({
+        success: false,
+        error: `Invitation has been ${invitation.status}`,
+        status: invitation.status
+      });
+    }
+    
+    // Check if expired
+    if (new Date(invitation.expires_at) < new Date()) {
+      // Auto-expire the invitation
+      await pool.query(
+        'UPDATE org_invitations SET status = ? WHERE invitation_id = ?',
+        ['expired', invitation.invitation_id]
+      );
+      
+      return res.status(410).json({
+        success: false,
+        error: 'Invitation has expired'
+      });
+    }
+    
+    // Return invitation details
+    res.json({
+      success: true,
+      invitation: {
+        organizationId: invitation.org_id,
+        organizationName: invitation.org_name,
+        organizationPlan: invitation.org_plan,
+        inviterName: invitation.inviter_name,
+        inviterEmail: invitation.inviter_email,
+        inviterAvatar: invitation.inviter_avatar,
+        email: invitation.invitee_email,
+        role: invitation.role,
+        message: invitation.message,
+        expiresAt: invitation.expires_at,
+        status: invitation.status,
+        createdAt: invitation.created_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error getting invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve invitation'
+    });
+  }
+});
+
+/**
+ * POST /api/invitations/:token/accept
+ * Accept an organization invitation (newer format with org_invitations table)
+ */
+app.post('/api/invitations/:token/accept', authenticateToken, async (req, res) => {
+  const { token } = req.params;
+  const userId = req.user.userId;
+  const userEmail = req.user.email;
+  
+  try {
+    // Get invitation
+    const [invitations] = await pool.query(
+      `SELECT i.*, o.name as org_name 
+       FROM org_invitations i
+       JOIN orgs o ON i.org_id = o.org_id
+       WHERE i.invitation_token = ?`,
+      [token]
+    );
+    
+    if (invitations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+    
+    const invitation = invitations[0];
+    
+    // Verify email matches
+    if (invitation.invitee_email.toLowerCase() !== userEmail.toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        error: 'This invitation was sent to a different email address'
+      });
+    }
+    
+    // Check invitation status
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: `Invitation has already been ${invitation.status}`
+      });
+    }
+    
+    // Check if expired
+    if (new Date(invitation.expires_at) < new Date()) {
+      await pool.query(
+        'UPDATE org_invitations SET status = ? WHERE invitation_id = ?',
+        ['expired', invitation.invitation_id]
+      );
+      
+      return res.status(410).json({
+        success: false,
+        error: 'Invitation has expired'
+      });
+    }
+    
+    // Begin transaction
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    try {
+      // Add user to organization
+      await connection.query(
+        `INSERT INTO org_members (org_id, user_id, role, invited_by) 
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
+        [invitation.org_id, userId, invitation.role, invitation.inviter_id]
+      );
+      
+      // Update invitation status
+      await connection.query(
+        `UPDATE org_invitations 
+         SET status = 'accepted', accepted_at = NOW() 
+         WHERE invitation_id = ?`,
+        [invitation.invitation_id]
+      );
+      
+      // Log to audit log
+      await connection.query(
+        `INSERT INTO audit_log (org_id, user_id, action, resource_type, resource_id, details) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          invitation.org_id,
+          userId,
+          'invitation_accepted',
+          'invitation',
+          invitation.invitation_id,
+          JSON.stringify({
+            inviter_id: invitation.inviter_id,
+            role: invitation.role
+          })
+        ]
+      );
+      
+      // Commit transaction
+      await connection.commit();
+      connection.release();
+      
+      // Return success
+      res.json({
+        success: true,
+        organizationId: invitation.org_id,
+        organizationName: invitation.org_name,
+        role: invitation.role,
+        message: `Successfully joined ${invitation.org_name}`
+      });
+      
+    } catch (txError) {
+      await connection.rollback();
+      connection.release();
+      throw txError;
+    }
+    
+  } catch (error) {
+    console.error('Error accepting invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to accept invitation'
+    });
+  }
+});
+
+/**
+ * POST /api/invitations/:token/decline
+ * Decline an organization invitation
+ */
+app.post('/api/invitations/:token/decline', async (req, res) => {
+  const { token } = req.params;
+  const userId = req.user?.userId; // Optional authentication
+  
+  try {
+    // Get invitation
+    const [invitations] = await pool.query(
+      'SELECT * FROM org_invitations WHERE invitation_token = ?',
+      [token]
+    );
+    
+    if (invitations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+    
+    const invitation = invitations[0];
+    
+    // Check invitation status
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: `Invitation has already been ${invitation.status}`
+      });
+    }
+    
+    // Update invitation status
+    await pool.query(
+      'UPDATE org_invitations SET status = ?, declined_at = NOW() WHERE invitation_id = ?',
+      ['declined', invitation.invitation_id]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Invitation declined'
+    });
+    
+  } catch (error) {
+    console.error('Error declining invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to decline invitation'
+    });
+  }
+});
+
+/**
+ * GET /api/users/me/invitations
+ * Get all pending invitations for the current user
+ */
+app.get('/api/users/me/invitations', authenticateToken, async (req, res) => {
+  const userEmail = req.user.email;
+  
+  try {
+    const [invitations] = await pool.query(
+      `SELECT 
+        i.*,
+        o.name as org_name,
+        o.plan as org_plan,
+        u.name as inviter_name,
+        u.email as inviter_email,
+        u.avatar_url as inviter_avatar
+       FROM org_invitations i
+       JOIN orgs o ON i.org_id = o.org_id
+       JOIN users u ON i.inviter_id = u.user_id
+       WHERE i.invitee_email = ? 
+       AND i.status = 'pending'
+       AND i.expires_at > NOW()
+       ORDER BY i.created_at DESC`,
+      [userEmail]
+    );
+    
+    res.json({
+      success: true,
+      invitations: invitations.map(inv => ({
+        invitationId: inv.invitation_id,
+        token: inv.invitation_token,
+        organizationId: inv.org_id,
+        organizationName: inv.org_name,
+        organizationPlan: inv.org_plan,
+        inviterName: inv.inviter_name,
+        inviterEmail: inv.inviter_email,
+        inviterAvatar: inv.inviter_avatar,
+        role: inv.role,
+        message: inv.message,
+        expiresAt: inv.expires_at,
+        createdAt: inv.created_at
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Error fetching user invitations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch invitations'
+    });
   }
 });
 
@@ -3451,7 +4121,7 @@ app.get('/api/orgs/:orgId/vectors/:vectorId', authenticateToken, verifyOrgMember
         totalChunks: totalChunks,
         mimeType: metadata.mime || 'text/plain',
         docId: metadata.doc_id,
-        folderId: metadata.folder_id,
+        spaceId: metadata.space_id,
         createdAt: metadata.created_at,
       },
     });
@@ -4181,516 +4851,6 @@ app.delete('/api/chats/:chatId/share', authenticateToken, async (req, res) => {
 // ============================================
 // Organization Invitation Endpoints
 // ============================================
-
-/**
- * POST /api/organizations/:orgId/invitations
- * Create a new organization invitation (Admin only)
- */
-app.post('/api/organizations/:orgId/invitations', authenticateToken, verifyOrgMembership, async (req, res) => {
-  const { orgId } = req.params;
-  const { email, role, message } = req.body;
-  const inviterId = req.user.userId;
-  
-  try {
-    // 1. Validate permissions
-    if (!await isOrgAdmin(inviterId, orgId)) {
-      return res.status(403).json({
-        success: false,
-        error: 'Admin or owner role required to send invitations'
-      });
-    }
-    
-    // 2. Validate input
-    if (!email || !isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Valid email address is required'
-      });
-    }
-    
-    if (!role || !INVITATION_CONFIG.ALLOWED_ROLES.includes(role)) {
-      return res.status(400).json({
-        success: false,
-        error: `Role must be one of: ${INVITATION_CONFIG.ALLOWED_ROLES.join(', ')}`
-      });
-    }
-    
-    if (message && message.length > INVITATION_CONFIG.MAX_MESSAGE_LENGTH) {
-      return res.status(400).json({
-        success: false,
-        error: `Message must be ${INVITATION_CONFIG.MAX_MESSAGE_LENGTH} characters or less`
-      });
-    }
-    
-    // 3. Check if user is already a member
-    const [existingMembers] = await pool.query(
-      `SELECT om.user_id, u.email 
-       FROM org_members om 
-       JOIN users u ON om.user_id = u.user_id 
-       WHERE om.org_id = ? AND u.email = ?`,
-      [orgId, email]
-    );
-    
-    if (existingMembers.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'User is already a member of this organization'
-      });
-    }
-    
-    // 4. Check for existing pending invitation
-    const [pendingInvitations] = await pool.query(
-      `SELECT invitation_id FROM org_invitations 
-       WHERE org_id = ? AND invitee_email = ? AND status = 'pending' AND expires_at > NOW()`,
-      [orgId, email]
-    );
-    
-    if (pendingInvitations.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'An active invitation already exists for this email'
-      });
-    }
-    
-    // 5. Check rate limits
-    const rateLimitCheck = await checkInvitationRateLimits(orgId, email);
-    if (!rateLimitCheck.allowed) {
-      return res.status(429).json({
-        success: false,
-        error: rateLimitCheck.reason
-      });
-    }
-    
-    // 6. Generate secure token
-    const invitationToken = generateInvitationToken();
-    
-    // 7. Create invitation
-    const [result] = await pool.query(
-      `INSERT INTO org_invitations 
-       (org_id, inviter_id, invitee_email, role, invitation_token, message, metadata) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        orgId,
-        inviterId,
-        email.toLowerCase(),
-        role,
-        invitationToken,
-        message || null,
-        JSON.stringify({
-          ip_address: req.ip || req.connection.remoteAddress,
-          user_agent: req.get('user-agent')
-        })
-      ]
-    );
-    
-    const invitationId = result.insertId;
-    
-    // 8. Get complete invitation details
-    const [invitations] = await pool.query(
-      `SELECT * FROM org_invitations WHERE invitation_id = ?`,
-      [invitationId]
-    );
-    
-    const invitation = invitations[0];
-    
-    // 9. Get org and inviter details for email
-    const [orgs] = await pool.query('SELECT * FROM orgs WHERE org_id = ?', [orgId]);
-    const [inviters] = await pool.query('SELECT * FROM users WHERE user_id = ?', [inviterId]);
-    
-    // 10. Send invitation email
-    try {
-      await sendInvitationEmail(invitation, orgs[0], inviters[0]);
-    } catch (emailError) {
-      console.error('Error sending email:', emailError);
-      // Don't fail the request if email fails
-    }
-    
-    // 11. Log activity
-    await logInvitationActivity(invitationId, 'created', inviterId, {
-      email: email,
-      role: role
-    }, req);
-    
-    // 12. Return success response
-    res.status(201).json({
-      success: true,
-      invitation: {
-        invitationId: invitation.invitation_id,
-        orgId: invitation.org_id,
-        email: invitation.invitee_email,
-        role: invitation.role,
-        token: invitation.invitation_token,
-        invitationLink: `${process.env.APP_URL || 'http://localhost:3000'}/accept-invitation/${invitation.invitation_token}`,
-        expiresAt: invitation.expires_at,
-        status: invitation.status,
-        createdAt: invitation.created_at
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error creating invitation:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create invitation'
-    });
-  }
-});
-
-/**
- * GET /api/invitations/:token
- * Get invitation details by token (public endpoint)
- */
-app.get('/api/invitations/:token', async (req, res) => {
-  const { token } = req.params;
-  
-  try {
-    // Get invitation with org and inviter details
-    const [invitations] = await pool.query(
-      `SELECT 
-        i.*,
-        o.name as org_name,
-        o.plan as org_plan,
-        u.name as inviter_name,
-        u.email as inviter_email,
-        u.avatar_url as inviter_avatar
-       FROM org_invitations i
-       JOIN orgs o ON i.org_id = o.org_id
-       JOIN users u ON i.inviter_id = u.user_id
-       WHERE i.invitation_token = ?`,
-      [token]
-    );
-    
-    if (invitations.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Invitation not found'
-      });
-    }
-    
-    const invitation = invitations[0];
-    
-    // Check if invitation is still valid
-    if (invitation.status !== 'pending') {
-      return res.status(410).json({
-        success: false,
-        error: `Invitation has been ${invitation.status}`,
-        status: invitation.status
-      });
-    }
-    
-    // Check if expired
-    if (new Date(invitation.expires_at) < new Date()) {
-      // Auto-expire the invitation
-      await pool.query(
-        'UPDATE org_invitations SET status = ? WHERE invitation_id = ?',
-        ['expired', invitation.invitation_id]
-      );
-      
-      return res.status(410).json({
-        success: false,
-        error: 'Invitation has expired'
-      });
-    }
-    
-    // Log view activity
-    await logInvitationActivity(invitation.invitation_id, 'viewed', null, {}, req);
-    
-    // Return invitation details
-    res.json({
-      success: true,
-      invitation: {
-        organizationId: invitation.org_id,
-        organizationName: invitation.org_name,
-        organizationPlan: invitation.org_plan,
-        inviterName: invitation.inviter_name,
-        inviterEmail: invitation.inviter_email,
-        inviterAvatar: invitation.inviter_avatar,
-        email: invitation.invitee_email,
-        role: invitation.role,
-        message: invitation.message,
-        expiresAt: invitation.expires_at,
-        status: invitation.status,
-        createdAt: invitation.created_at
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error getting invitation:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve invitation'
-    });
-  }
-});
-
-/**
- * POST /api/invitations/:token/accept
- * Accept an organization invitation
- */
-app.post('/api/invitations/:token/accept', authenticateToken, async (req, res) => {
-  const { token } = req.params;
-  const userId = req.user.userId;
-  const userEmail = req.user.email;
-  
-  try {
-    // Get invitation
-    const [invitations] = await pool.query(
-      `SELECT i.*, o.name as org_name 
-       FROM org_invitations i
-       JOIN orgs o ON i.org_id = o.org_id
-       WHERE i.invitation_token = ?`,
-      [token]
-    );
-    
-    if (invitations.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Invitation not found'
-      });
-    }
-    
-    const invitation = invitations[0];
-    
-    // Verify email matches
-    if (invitation.invitee_email.toLowerCase() !== userEmail.toLowerCase()) {
-      return res.status(400).json({
-        success: false,
-        error: 'This invitation was sent to a different email address'
-      });
-    }
-    
-    // Check invitation status
-    if (invitation.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        error: `Invitation has already been ${invitation.status}`
-      });
-    }
-    
-    // Check if expired
-    if (new Date(invitation.expires_at) < new Date()) {
-      await pool.query(
-        'UPDATE org_invitations SET status = ? WHERE invitation_id = ?',
-        ['expired', invitation.invitation_id]
-      );
-      
-      return res.status(410).json({
-        success: false,
-        error: 'Invitation has expired'
-      });
-    }
-    
-    // Begin transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-    
-    try {
-      // Add user to organization
-      await connection.query(
-        `INSERT INTO org_members (org_id, user_id, role, invited_by) 
-         VALUES (?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
-        [invitation.org_id, userId, invitation.role, invitation.inviter_id]
-      );
-      
-      // Update invitation status
-      await connection.query(
-        `UPDATE org_invitations 
-         SET status = 'accepted', accepted_at = NOW() 
-         WHERE invitation_id = ?`,
-        [invitation.invitation_id]
-      );
-      
-      // Log to audit log
-      await connection.query(
-        `INSERT INTO audit_log (org_id, user_id, action, resource_type, resource_id, details) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          invitation.org_id,
-          userId,
-          'invitation_accepted',
-          'invitation',
-          invitation.invitation_id,
-          JSON.stringify({
-            inviter_id: invitation.inviter_id,
-            role: invitation.role
-          })
-        ]
-      );
-      
-      // Commit transaction
-      await connection.commit();
-      connection.release();
-      
-      // Log activity
-      await logInvitationActivity(invitation.invitation_id, 'accepted', userId, {
-        org_id: invitation.org_id,
-        role: invitation.role
-      }, req);
-      
-      // Return success
-      res.json({
-        success: true,
-        organizationId: invitation.org_id,
-        organizationName: invitation.org_name,
-        role: invitation.role,
-        message: `Successfully joined ${invitation.org_name}`
-      });
-      
-    } catch (txError) {
-      await connection.rollback();
-      connection.release();
-      throw txError;
-    }
-    
-  } catch (error) {
-    console.error('Error accepting invitation:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to accept invitation'
-    });
-  }
-});
-
-/**
- * POST /api/invitations/:token/decline
- * Decline an organization invitation
- */
-app.post('/api/invitations/:token/decline', async (req, res) => {
-  const { token } = req.params;
-  const userId = req.user?.userId; // Optional authentication
-  
-  try {
-    // Get invitation
-    const [invitations] = await pool.query(
-      'SELECT * FROM org_invitations WHERE invitation_token = ?',
-      [token]
-    );
-    
-    if (invitations.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Invitation not found'
-      });
-    }
-    
-    const invitation = invitations[0];
-    
-    // Check invitation status
-    if (invitation.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        error: `Invitation has already been ${invitation.status}`
-      });
-    }
-    
-    // Update invitation status
-    await pool.query(
-      'UPDATE org_invitations SET status = ?, declined_at = NOW() WHERE invitation_id = ?',
-      ['declined', invitation.invitation_id]
-    );
-    
-    // Log activity
-    await logInvitationActivity(invitation.invitation_id, 'declined', userId, {}, req);
-    
-    res.json({
-      success: true,
-      message: 'Invitation declined'
-    });
-    
-  } catch (error) {
-    console.error('Error declining invitation:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to decline invitation'
-    });
-  }
-});
-
-/**
- * GET /api/organizations/:orgId/invitations
- * List all invitations for an organization (Admin only)
- */
-app.get('/api/organizations/:orgId/invitations', authenticateToken, verifyOrgMembership, async (req, res) => {
-  const { orgId } = req.params;
-  const inviterId = req.user.userId;
-  const { status, limit = 50, offset = 0 } = req.query;
-  
-  try {
-    // Validate permissions
-    if (!await isOrgAdmin(inviterId, orgId)) {
-      return res.status(403).json({
-        success: false,
-        error: 'Admin or owner role required'
-      });
-    }
-    
-    // Build query
-    let query = `
-      SELECT 
-        i.*,
-        u.name as inviter_name,
-        u.email as inviter_email
-      FROM org_invitations i
-      JOIN users u ON i.inviter_id = u.user_id
-      WHERE i.org_id = ?
-    `;
-    
-    const params = [orgId];
-    
-    if (status) {
-      query += ' AND i.status = ?';
-      params.push(status);
-    }
-    
-    query += ' ORDER BY i.created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), parseInt(offset));
-    
-    // Get invitations
-    const [invitations] = await pool.query(query, params);
-    
-    // Get total count
-    let countQuery = 'SELECT COUNT(*) as total FROM org_invitations WHERE org_id = ?';
-    const countParams = [orgId];
-    
-    if (status) {
-      countQuery += ' AND status = ?';
-      countParams.push(status);
-    }
-    
-    const [countResult] = await pool.query(countQuery, countParams);
-    
-    res.json({
-      success: true,
-      invitations: invitations.map(inv => ({
-        invitationId: inv.invitation_id,
-        email: inv.invitee_email,
-        role: inv.role,
-        status: inv.status,
-        message: inv.message,
-        inviterName: inv.inviter_name,
-        inviterEmail: inv.inviter_email,
-        createdAt: inv.created_at,
-        expiresAt: inv.expires_at,
-        acceptedAt: inv.accepted_at,
-        declinedAt: inv.declined_at,
-        revokedAt: inv.revoked_at
-      })),
-      pagination: {
-        total: countResult[0].total,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error listing invitations:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to list invitations'
-    });
-  }
-});
 
 /**
  * DELETE /api/invitations/:invitationId

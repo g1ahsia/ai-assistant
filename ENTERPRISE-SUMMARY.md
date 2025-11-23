@@ -337,13 +337,14 @@ const RATE_LIMITS = {
 Spaces replace the traditional folder-centric model with collaborative workspaces. Instead of organizing by folders, users organize files into Spaces - contextual environments where teams can collaborate and query AI within a specific scope.
 
 **Key Features:**
-- **Personal Spaces**: Auto-created for each user on signup
+- **Personal Spaces**: Auto-created "Personal" space for each user on signup
 - **Team Spaces**: Collaborative workspaces for teams/projects
 - **Many-to-Many**: Files can belong to multiple spaces
 - **Role-Based Access**: Owner, Contributor, Viewer
 - **AI Context Scoping**: Queries scoped to space files
 - **Member Management**: Add/remove members with fine-grained permissions
 - **Activity Tracking**: Complete audit trail of space operations
+- **Immediate Upload**: Users can upload files to their personal space immediately after signup
 
 **Database Tables:**
 
@@ -753,7 +754,16 @@ curl -X POST http://localhost:3000/api/auth/signup \
   }'
 
 # Or login with Google OAuth (see API-AUTH-EXAMPLES.md)
-# Returns: { token: "eyJ...", user: {...} }
+# Returns: { 
+#   token: "eyJ...", 
+#   user: {...},
+#   defaultSpace: {
+#     spaceId: "space_123",
+#     name: "Personal",
+#     type: "public"
+#   }
+# }
+# Note: A personal organization and default "Personal" space are auto-created on signup
 ```
 
 ### 4. Create Organization (Optional)

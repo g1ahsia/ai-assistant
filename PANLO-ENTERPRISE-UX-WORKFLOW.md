@@ -456,7 +456,9 @@ Click 👤 icon → Profile menu appears:
 │  john@company.com           │
 ├─────────────────────────────┤
 │  Profile & Account          │
-│  Spaces & Members           │
+│  Teams & Members            │
+│  Manage Organization  👑   │  ← Admin/Owner only
+├─────────────────────────────┤
 │  Upload & Sync Settings     │
 │  Notifications              │
 ├─────────────────────────────┤
@@ -466,6 +468,8 @@ Click 👤 icon → Profile menu appears:
 │  Sign Out                   │
 └─────────────────────────────┘
 ```
+
+**Note:** "Manage Organization" option only appears for organization admins and owners.
 
 **Icon States:**
 - **Default**: Gray icon
@@ -1346,6 +1350,200 @@ Click 📊 icon → Context menu appears:
 
 ---
 
+#### **Screen 17: Manage Organization** (Admin/Owner Only - Click 👤 → "Manage Organization")
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Manage Organization - Acme Corp                       [✕]     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  🏢 Organization Details                                         │
+│                                                                   │
+│  Organization Name: Acme Corp                                    │
+│  Plan: Enterprise • 25 members                                   │
+│  Your Role: Owner                                                │
+│  Created: Jan 15, 2024                                           │
+│                                                                   │
+│  ──────────────────────────────────────────────────────────────  │
+│                                                                   │
+│  👥 Organization Members (25)                  [+ Invite Member] │
+│                                                                   │
+│  [Search members...]                          [Filter by role ▾] │
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  👤 John Doe (You)                      Owner       [···] │ │
+│  │     john@company.com                                       │ │
+│  │     Member since: Jan 15, 2024                            │ │
+│  │                                                            │ │
+│  │  👤 Sarah Johnson                        Admin       [···] │ │
+│  │     sarah@company.com                                      │ │
+│  │     Member since: Jan 20, 2024                            │ │
+│  │                                                            │ │
+│  │  👤 Mike Chen                            Member      [···] │ │
+│  │     mike@company.com                                       │ │
+│  │     Member since: Feb 1, 2024                             │ │
+│  │                                                            │ │
+│  │  👤 Lisa Wong                            Member      [···] │ │
+│  │     lisa@company.com                                       │ │
+│  │     Member since: Feb 5, 2024                             │ │
+│  │                                                            │ │
+│  │  ... 21 more members                          [Show All]  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                   │
+│  ──────────────────────────────────────────────────────────────  │
+│                                                                   │
+│  📧 Pending Invitations (3)                  [View All]         │
+│                                                                   │
+│  • newuser@example.com (Member) - Expires in 5 days             │
+│  • jane.smith@company.com (Admin) - Expires in 6 days           │
+│  • bob@startup.com (Member) - Expires in 1 day ⚠️                │
+│                                                                   │
+│  [Manage Invitations]                                            │
+│                                                                   │
+│  ──────────────────────────────────────────────────────────────  │
+│                                                                   │
+│  [Close]                                                         │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Access:** 
+- Click 👤 Profile icon → "Manage Organization"
+- Only visible to organization Owners and Admins
+
+**Features:**
+
+**1. Organization Overview:**
+- Organization name and plan
+- Total member count
+- User's role
+- Creation date
+
+**2. Member Management:**
+- **View all members** with their roles (Owner, Admin, Member)
+- **Search members** by name or email
+- **Filter by role** using dropdown
+- **Member context menu** [···] for each member:
+  ```
+  ┌─────────────────────────────┐
+  │ • Change Role               │  ← Owner/Admin only
+  │   - Make Admin              │
+  │   - Make Member             │
+  │   - Make Owner              │
+  │ • View Member Details       │
+  │ ──────────────────────────  │
+  │ • Remove from Organization  │  ← Owner/Admin only
+  └─────────────────────────────┘
+  ```
+
+**3. Invite Members:**
+- Click [+ Invite Member] button at top right
+- Opens invitation modal (see Workflow 7)
+- Admins and Owners can send invitations
+
+**4. Pending Invitations:**
+- Quick view showing 3 most recent pending invitations
+- Shows email, role, and expiration time
+- Warning icon (⚠️) for invitations expiring soon
+- Click [View All] or [Manage Invitations] → Opens full invitations list (Screen 18)
+
+**Permissions:**
+- **Owner**: Full control - manage all members, invite, remove, change roles
+- **Admin**: Can invite members, remove non-admin members, view all
+- **Member**: Cannot access this screen
+
+**API Calls:**
+- `GET /api/orgs/{orgId}` - Get organization details
+- `GET /api/orgs/{orgId}/members` - List all members
+- `PUT /api/orgs/{orgId}/members/{userId}` - Update member role
+- `DELETE /api/orgs/{orgId}/members/{userId}` - Remove member
+- `GET /api/orgs/{orgId}/invitations?status=pending&limit=3` - Pending invitations preview
+
+---
+
+#### **Screen 18: View All Pending Invitations** (Click "Manage Invitations" from Screen 17)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Pending Invitations - Acme Corp                       [✕]     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  [Active] [Pending] [Accepted] [Declined] [Expired] [Revoked]  │
+│           ──────                                                 │
+│                                                                   │
+│  Pending Invitations (5)                       [+ Invite Member] │
+│                                                                   │
+│  [Search invitations...]                                         │
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  📧 newuser@example.com                            [···]  │ │
+│  │     Role: Member                                           │ │
+│  │     Invited by: John Doe                                   │ │
+│  │     Sent: 2 days ago • Expires in 5 days                  │ │
+│  │                                                            │ │
+│  │  📧 jane.smith@company.com                         [···]  │ │
+│  │     Role: Admin                                            │ │
+│  │     Invited by: You                                        │ │
+│  │     Sent: 1 day ago • Expires in 6 days                   │ │
+│  │                                                            │ │
+│  │  📧 bob@startup.com                                [···]  │ │
+│  │     Role: Member                                           │ │
+│  │     Invited by: Sarah Lee                                  │ │
+│  │     Sent: 6 days ago • Expires in 1 day                   │ │
+│  │     ⚠️ Expires soon!                                       │ │
+│  │                                                            │ │
+│  │  📧 alice@company.com                              [···]  │ │
+│  │     Role: Member                                           │ │
+│  │     Invited by: John Doe                                   │ │
+│  │     Sent: 3 days ago • Expires in 4 days                  │ │
+│  │                                                            │ │
+│  │  📧 david@tech.com                                 [···]  │ │
+│  │     Role: Admin                                            │ │
+│  │     Invited by: Sarah Johnson                              │ │
+│  │     Sent: 5 hours ago • Expires in 6 days                 │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                   │
+│  [Close]                                                         │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Tabs:**
+- **Pending**: Invitations awaiting acceptance (default view)
+- **Accepted**: Successfully joined members
+- **Declined**: Invitations that were declined
+- **Expired**: Invitations that expired (7 days)
+- **Revoked**: Invitations cancelled by admin
+
+**Invitation Context Menu [···]:**
+```
+┌─────────────────────────────┐
+│ • Copy Invitation Link      │
+│ • Resend Email              │
+│ ──────────────────────────  │
+│ • Revoke Invitation         │
+└─────────────────────────────┘
+```
+
+**Actions:**
+- **Copy Invitation Link**: Copy invitation URL to clipboard
+- **Resend Email**: Send invitation email again (limited to 3 resends)
+- **Revoke Invitation**: Cancel invitation (confirmation required)
+
+**Features:**
+- Search invitations by email
+- Filter by status using tabs
+- View detailed invitation history
+- Warning indicators for expiring invitations
+- Quick access to invite more members
+
+**API Calls:**
+- `GET /api/orgs/{orgId}/invitations` - List all invitations (with status filter)
+- `POST /api/invitations/{invitationId}/resend` - Resend invitation email
+- `DELETE /api/invitations/{invitationId}` - Revoke invitation
+
+---
+
 ## 🔄 Key User Workflows
 
 ### Workflow 1: Complete Onboarding (First-Time User)
@@ -1651,8 +1849,14 @@ To Share Space via Link:
 
 ### Workflow 7: Invite New Member to Organization (Admin Only)
 ```
+Option A: Via Avatar Menu (Recommended)
+1. Click 👤 Profile icon → "Manage Organization"
+2. Click [+ Invite Member] button
+
+Option B: Via Settings
 1. Click ⚙️ Settings → "Teams & Members"
 2. Click [+ Invite Member]
+
 3. Modal opens:
    ┌─────────────────────────────────────────┐
    │        Invite Member to Organization     │
@@ -1673,12 +1877,13 @@ To Share Space via Link:
    │                                          │
    │        [Cancel]    [Send Invitation]    │
    └─────────────────────────────────────────┘
+
 4. Enter email address
 5. Select role (Admin or Member)
 6. (Optional) Add personal message
 7. Click [Send Invitation]
 8. ✅ Success toast: "Invitation sent to newuser@example.com"
-9. Invitation appears in "Pending Invitations" tab
+9. Invitation appears in "Pending Invitations" section
 10. Invitee receives email with invitation link
 ```
 
@@ -1754,8 +1959,15 @@ To Share Space via Link:
 
 ### Workflow 9: View Pending Invitations (Admin)
 ```
+Option A: Via Avatar Menu (Recommended)
+1. Click 👤 Profile icon → "Manage Organization"
+2. Click [Manage Invitations] or [View All] in Pending Invitations section
+3. Full invitations list appears (Screen 18)
+
+Option B: Via Settings
 1. Click ⚙️ Settings → "Teams & Members"
 2. Click "Pending Invitations" tab
+
 3. Shows list of pending invitations:
    ┌─────────────────────────────────────────────────────────┐
    │  Pending Invitations (5)                  [+ Invite]    │
@@ -2032,6 +2244,9 @@ To Share Space via Link:
 | **Ask About File** | File view: input at bottom | Ask questions about open document |
 | **Multiple Tabs** | Main window: [×] [+] buttons | Open multiple chats/files |
 | **Settings** | 👤 icon (bottom of left bar) | Profile, spaces, account |
+| **Manage Organization** | 👤 icon → "Manage Organization" | View members, invite, manage roles (Admin only) |
+| **Invite to Organization** | Manage Organization → "[+ Invite Member]" | Send invitation to new member (Admin only) |
+| **View Invitations** | Manage Organization → "Manage Invitations" | View/manage pending invitations (Admin only) |
 
 ---
 
@@ -2374,9 +2589,18 @@ Toggle Sidebar                  ⌘B
 - Role-based access control
 - Background indexing
 - Real-time collaboration
-- **Organization Invitations** (NEW)
+- **Organization Management** (Admin/Owner only)
+  - Access via Avatar menu → "Manage Organization"
+  - Member list with roles (Owner, Admin, Member)
+  - Search and filter members
+  - Change member roles
+  - Remove members from organization
+- **Organization Invitations**
   - Secure token-based email invitations
   - Admin can invite members with specific roles
+  - Accessible via "Manage Organization" screen
+  - View pending, accepted, declined, expired invitations
+  - Resend or revoke invitations
   - Automatic expiration (7 days)
   - Rate limiting and abuse prevention
   - Complete audit trail
@@ -2486,6 +2710,8 @@ Toggle Sidebar                  ⌘B
 | **14** | Create Team | Create new team | `POST /api/orgs/{orgId}/teams`<br>`POST /api/teams/{teamId}/members` |
 | **15** | Team Detail View | View team members & details | `GET /api/teams/{teamId}`<br>`GET /api/teams/{teamId}/members` |
 | **16** | Leave Team Confirmation | Confirm leaving team | `DELETE /api/teams/{teamId}/members/{userId}` |
+| **17** | Manage Organization (Admin) | Organization member management | `GET /api/orgs/{orgId}`<br>`GET /api/orgs/{orgId}/members`<br>`PUT /api/orgs/{orgId}/members/{userId}`<br>`DELETE /api/orgs/{orgId}/members/{userId}` |
+| **18** | View All Pending Invitations | View/manage all invitations | `GET /api/orgs/{orgId}/invitations`<br>`POST /api/invitations/{invitationId}/resend`<br>`DELETE /api/invitations/{invitationId}` |
 
 ### UI Components Summary
 
@@ -2579,12 +2805,13 @@ Toggle Sidebar                  ⌘B
 
 This comprehensive UX workflow document now includes:
 
-✅ **18+ detailed screen mockups** with ASCII art UI representations  
+✅ **20+ detailed screen mockups** with ASCII art UI representations  
 ✅ **10 key user workflows** with step-by-step instructions  
 ✅ **Unified three-panel layout** with consolidated detail view for files and chats  
 ✅ **File browsing system** with content preview and actions  
 ✅ **Chat history management** with save, view, and continue features  
 ✅ **Complete team management system** with create, view, leave workflows  
+✅ **Organization management** (Admin/Owner only) with member list, roles, and invitations  
 ✅ **Complete notification system** with toast examples and settings  
 ✅ **Comprehensive toggle & UI patterns** with usage guidelines  
 ✅ **Full settings screens** (Notifications, Folders, Profile, Teams)  
@@ -2592,7 +2819,7 @@ This comprehensive UX workflow document now includes:
 ✅ **Design patterns** for toggles, dropdowns, buttons, and badges  
 ✅ **Quick reference tables** for screens, components, and shortcuts
 
-**Total Document Size:** ~1,800+ lines of comprehensive UX documentation
+**Total Document Size:** ~2,800+ lines of comprehensive UX documentation
 
 **Key Innovation:** Consolidated detail view seamlessly switches between file content and chat history, providing a unified browsing and conversation experience.
 
